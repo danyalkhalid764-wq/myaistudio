@@ -30,8 +30,8 @@ app.include_router(tts.router, prefix="/api", tags=["text-to-speech"])
 app.include_router(payments.router, prefix="/api/payment", tags=["payments"])
 app.include_router(video.router, prefix="/api/video", tags=["video"])
 
-# Static files for generated videos
-videos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "generated_videos"))
+# Static files for generated videos - FIXED for Railway
+videos_dir = "/tmp/generated_videos"
 os.makedirs(videos_dir, exist_ok=True)
 
 # Mount static files - allow access to video files
@@ -40,8 +40,6 @@ try:
 except ValueError:
     # If already mounted, skip
     pass
-
-
 
 @app.get("/")
 async def root():
@@ -54,6 +52,3 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-
