@@ -8,8 +8,12 @@ load_dotenv()
 
 # PostgreSQL configuration from environment variable
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Temporary fallback to get the app running
 if not DATABASE_URL:
-    raise Exception("DATABASE_URL environment variable is required")
+    # Use SQLite as fallback for now
+    DATABASE_URL = "sqlite:///./test.db"
+    print("⚠️  DATABASE_URL not found, using SQLite fallback")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
