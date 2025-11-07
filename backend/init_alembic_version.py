@@ -20,7 +20,7 @@ print("🔧 Initializing Alembic version table...")
 try:
     engine = create_engine(database_url)
     
-    with engine.connect() as connection:
+    with engine.begin() as connection:
         # Check if alembic_version table exists
         result = connection.execute(text("""
             SELECT table_name 
@@ -46,7 +46,6 @@ try:
                     ALTER TABLE alembic_version 
                     ALTER COLUMN version_num TYPE VARCHAR(255);
                 """))
-                connection.commit()
                 print("✅ Column size updated to VARCHAR(255)")
             else:
                 print("✅ Column size is already sufficient")
@@ -59,11 +58,12 @@ try:
                     CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
                 );
             """))
-            connection.commit()
             print("✅ alembic_version table created successfully")
         
 except Exception as e:
     print(f"❌ Error initializing Alembic version table: {e}")
+    import traceback
+    traceback.print_exc()
     exit(1)
 
 print("\n🎉 Alembic version table is ready! You can now run migrations.")
