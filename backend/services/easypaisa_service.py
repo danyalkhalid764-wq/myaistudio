@@ -2,6 +2,7 @@ import httpx
 import uuid
 import os
 from dotenv import load_dotenv
+from config import settings
 
 load_dotenv()
 
@@ -27,6 +28,10 @@ class EasypaisaService:
         """
         transaction_id = str(uuid.uuid4())
         
+        # Use environment variables for URLs, fallback to localhost for development
+        frontend_url = settings.FRONTEND_URL or "http://localhost:3000"
+        backend_url = settings.BACKEND_URL or "http://localhost:8000"
+        
         data = {
             "merchant_id": self.merchant_id,
             "store_id": self.store_id,
@@ -34,9 +39,9 @@ class EasypaisaService:
             "currency": "PKR",
             "transaction_id": transaction_id,
             "description": f"Upgrade to {plan} plan",
-            "return_url": "http://localhost:3000/payment/success",
-            "cancel_url": "http://localhost:3000/payment/cancel",
-            "callback_url": "http://localhost:8000/api/payment/callback",
+            "return_url": f"{frontend_url}/payment/success",
+            "cancel_url": f"{frontend_url}/payment/cancel",
+            "callback_url": f"{backend_url}/api/payment/callback",
             "customer": {
                 "user_id": user_id
             }

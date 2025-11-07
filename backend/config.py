@@ -23,6 +23,10 @@ class Settings:
     # Claid API
     CLAID_API_KEY = os.getenv("CLAID_API_KEY")
     
+    # Frontend and Backend URLs
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+    
     # CORS Settings
     # Allow Netlify URL from environment variable, or use default localhost origins
     NETLIFY_URL = os.getenv("NETLIFY_URL", "")
@@ -31,7 +35,10 @@ class Settings:
         "http://127.0.0.1:3000",
         "http://localhost:3001",
     ]
-    if NETLIFY_URL:
+    # Add FRONTEND_URL to allowed origins if it's different from defaults
+    if FRONTEND_URL not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(FRONTEND_URL)
+    if NETLIFY_URL and NETLIFY_URL not in ALLOWED_ORIGINS:
         ALLOWED_ORIGINS.append(NETLIFY_URL)
     
     # Allow all origins in production if CORS_ALLOW_ALL is set
