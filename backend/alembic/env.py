@@ -1,5 +1,5 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 import os
 import sys
@@ -32,6 +32,50 @@ def get_url():
         raise Exception("DATABASE_URL not configured. Set DATABASE_URL in environment or database.py.")
     return url
 
+def ensure_alembic_version_table(connection):
+    """
+    Ensure alembic_version table exists with VARCHAR(255) column size.
+    This fixes the issue where Alembic creates the table with VARCHAR(32) by default.
+    """
+    try:
+        # Check if alembic_version table exists
+        result = connection.execute(text("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'alembic_version';
+        """))
+        exists = result.fetchone() is not None
+        
+        if exists:
+            # Check current column size
+            result = connection.execute(text("""
+                SELECT character_maximum_length 
+                FROM information_schema.columns 
+                WHERE table_name = 'alembic_version' 
+                AND column_name = 'version_num';
+            """))
+            current_size = result.fetchone()
+            if current_size and current_size[0] and current_size[0] < 255:
+                # Alter column to support longer version names
+                connection.execute(text("""
+                    ALTER TABLE alembic_version 
+                    ALTER COLUMN version_num TYPE VARCHAR(255);
+                """))
+                print(f"✅ Fixed alembic_version.version_num column size from {current_size[0]} to 255")
+        else:
+            # Create table with correct column size
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS alembic_version (
+                    version_num VARCHAR(255) NOT NULL,
+                    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+                );
+            """))
+            print("✅ Created alembic_version table with VARCHAR(255)")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not ensure alembic_version table structure: {e}")
+        # Don't fail migrations if this check fails
+
 def run_migrations_offline():
     url = get_url()
     context.configure(
@@ -55,6 +99,10 @@ def run_migrations_online():
         future=True,
     )
     with connectable.connect() as connection:
+        # Ensure alembic_version table has correct structure before running migrations
+        ensure_alembic_version_table(connection)
+        connection.commit()
+        
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
