@@ -69,9 +69,10 @@ cors_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",  # Vite dev server
-    "https://picvoice3labc.netlify.app",         # your deployed frontend
+    "https://picvoice3lab.netlify.app",         # NEW: current deployed frontend
+    "https://picvoice3labc.netlify.app",         # old deployed frontend
     "https://pakistani-project-frontend.netlify.app",  # backup / test domain
-    "https://startling-cobbler-7dd158.netlify.app",  # current Netlify domain
+    "https://startling-cobbler-7dd158.netlify.app",  # previous Netlify domain
 ]
 # Add any additional origins from config
 if hasattr(settings, 'ALLOWED_ORIGINS'):
