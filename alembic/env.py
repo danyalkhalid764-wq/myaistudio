@@ -26,10 +26,14 @@ target_metadata = Base.metadata
 
 # Get database URL from .env
 def get_url():
-    # Prefer env var; fallback to application's DATABASE_URL
+    # Use DATABASE_URL from environment or fallback to application's DATABASE_URL
     url = os.getenv("DATABASE_URL") or DATABASE_URL
     if not url:
-        raise Exception("DATABASE_URL not configured. Set DATABASE_URL in environment or database.py.")
+        # Use SQLite by default if not set
+        url = "sqlite:///./myaistudio.db"
+        print("⚠️ DATABASE_URL not found in Alembic, using SQLite default: sqlite:///./myaistudio.db")
+    else:
+        print(f"✅ Using DATABASE_URL in Alembic: {url[:50]}...")
     return url
 
 def ensure_alembic_version_table(connection):
