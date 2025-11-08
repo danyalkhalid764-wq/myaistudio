@@ -20,11 +20,22 @@ DATABASE_URL = (
 )
 
 if not DATABASE_URL:
-    # Use SQLite for local development
-    DATABASE_URL = "sqlite:///./myaistudio.db"
-    print("Using SQLite database for local development")
-    print(f"   Database file: {os.path.abspath('./myaistudio.db')}")
-    print("   Note: For Railway deployment, ensure PostgreSQL service is connected and DATABASE_URL is set")
+    # Check if we're on Railway (production) - Railway sets RAILWAY_ENVIRONMENT
+    is_railway = os.getenv("RAILWAY_ENVIRONMENT") is not None or os.getenv("RAILWAY_SERVICE_NAME") is not None
+    
+    if is_railway:
+        # On Railway, we need PostgreSQL - don't use SQLite fallback
+        print("ERROR: DATABASE_URL not found in Railway environment!")
+        print("Please set DATABASE_URL in your Railway backend service variables.")
+        print("Go to your backend service -> Variables -> Add DATABASE_URL from PostgreSQL service")
+        # Still allow server to start, but database operations will fail
+        DATABASE_URL = "sqlite:///./myaistudio.db"  # Temporary fallback
+        print("WARNING: Using SQLite as temporary fallback - this is NOT recommended for production!")
+    else:
+        # Use SQLite for local development
+        DATABASE_URL = "sqlite:///./myaistudio.db"
+        print("Using SQLite database for local development")
+        print(f"   Database file: {os.path.abspath('./myaistudio.db')}")
 else:
     # Clean up Railway template variables if present
     if "${{" in DATABASE_URL:
