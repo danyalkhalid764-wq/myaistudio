@@ -126,9 +126,9 @@ async def create_slideshow_video(
 
                 # Scale image to fill canvas while maintaining aspect ratio
                 # Use max scale to fill canvas (ensures image fills screen, may crop edges)
-                scale = max(W / iw, H / ih)
-                new_w, new_h = int(iw * scale), int(ih * scale)
-                print(f"🔍 Scaled to: {new_w}x{new_h} (scale: {scale:.2f})", flush=True)
+                base_scale = max(W / iw, H / ih)
+                new_w, new_h = int(iw * base_scale), int(ih * base_scale)
+                print(f"🔍 Base scale: {base_scale:.2f}, target size: {new_w}x{new_h}", flush=True)
                 
                 # Apply slide effects if enabled
                 # Note: Frontend sends "kenburns" but we check for both "kenburns" and "ken_burns"
@@ -136,20 +136,20 @@ async def create_slideshow_video(
                     transition_lower = transition.lower()
                     if transition_lower in ["kenburns", "ken_burns"]:
                         # Ken Burns effect: slow zoom and pan
-                        # Resize with animation: start at 95%, end at 105%
-                        clip = clip.resize(lambda t: (0.95 + 0.1 * t / dur))
+                        # Resize with animation: start at 95% of base scale, end at 105%
+                        clip = clip.resize(lambda t: base_scale * (0.95 + 0.1 * t / dur))
                         # Position: start from top-left, end at center
                         clip = clip.set_position(lambda t: (
-                            -(new_w * (0.95 + 0.1 * t / dur) - W) / 2,
-                            -(new_h * (0.95 + 0.1 * t / dur) - H) / 2
+                            -(iw * base_scale * (0.95 + 0.1 * t / dur) - W) / 2,
+                            -(ih * base_scale * (0.95 + 0.1 * t / dur) - H) / 2
                         ))
                     elif transition_lower == "zoom_in":
                         # Zoom in effect: start normal, zoom in
-                        clip = clip.resize(lambda t: (1.0 + 0.15 * t / dur))
+                        clip = clip.resize(lambda t: base_scale * (1.0 + 0.15 * t / dur))
                         clip = clip.set_position("center")
                     elif transition_lower == "zoom_out":
                         # Zoom out effect: start zoomed, zoom out
-                        clip = clip.resize(lambda t: (1.15 - 0.15 * t / dur))
+                        clip = clip.resize(lambda t: base_scale * (1.15 - 0.15 * t / dur))
                         clip = clip.set_position("center")
                     elif transition_lower == "slide":
                         # Slide effect: image slides in from right
