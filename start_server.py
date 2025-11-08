@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Startup script to ensure the server starts with proper error handling.
 """
 import sys
 import os
 
-# Force output immediately - CRITICAL
+# CRITICAL: Force output immediately
 sys.stdout.flush()
 sys.stderr.flush()
 
-# Print immediately to confirm script is running
+# Print immediately - this MUST appear in logs
 print("", flush=True)
 print("=" * 50, flush=True)
-print("🚀 STARTING SERVER STARTUP SCRIPT...", flush=True)
+print("STARTING SERVER STARTUP SCRIPT", flush=True)
 print("=" * 50, flush=True)
 print("", flush=True)
 
