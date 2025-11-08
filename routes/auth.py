@@ -13,33 +13,56 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 @router.post("/register", response_model=UserResponse)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        print(f"📝 Registration attempt for email: {user.email}", flush=True)
+        
+        # Check if user already exists
+        db_user = db.query(User).filter(User.email == user.email).first()
+        if db_user:
+            print(f"⚠️ Email already registered: {user.email}", flush=True)
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Create new user
-    hashed_password = get_password_hash(user.password)
-    db_user = User(
-        name=user.name,
-        email=user.email,
-        password_hash=hashed_password,
-        plan="Free",
-        daily_voice_count=0,
-    )
+        # Create new user
+        print(f"🔐 Hashing password for user: {user.email}", flush=True)
+        hashed_password = get_password_hash(user.password)
+        
+        print(f"👤 Creating user object: {user.name}, {user.email}", flush=True)
+        db_user = User(
+            name=user.name,
+            email=user.email,
+            password_hash=hashed_password,
+            plan="Free",
+            daily_voice_count=0,
+        )
 
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+        print(f"💾 Adding user to database...", flush=True)
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        print(f"✅ User created successfully: ID={db_user.id}, Email={db_user.email}", flush=True)
 
-    return UserResponse(
-        id=db_user.id,
-        name=db_user.name,
-        email=db_user.email,
-        plan=db_user.plan,
-        daily_voice_count=db_user.daily_voice_count or 0,
-        created_at=db_user.created_at
-    )
+        return UserResponse(
+            id=db_user.id,
+            name=db_user.name,
+            email=db_user.email,
+            plan=db_user.plan,
+            daily_voice_count=db_user.daily_voice_count or 0,
+            created_at=db_user.created_at
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions (they already have proper status codes and CORS headers)
+        raise
+    except Exception as e:
+        # Log the error and re-raise as HTTPException with CORS-friendly response
+        import traceback
+        error_detail = str(e)
+        traceback_str = traceback.format_exc()
+        print(f"❌ Registration error: {error_detail}", flush=True)
+        print(f"Traceback: {traceback_str}", flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {error_detail}"
+        )
 
 
 @router.post("/login", response_model=Token)
