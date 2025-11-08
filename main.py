@@ -1,15 +1,33 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
-from routes import auth, tts, payments, video
+import sys
 import os
 
-# DEBUG: Check if DATABASE_URL is set in Railway
-print("=" * 50)
-print("🚀 Starting FastAPI application...")
-print("DEBUG_DATABASE_URL:", os.getenv("DATABASE_URL"))
-print("=" * 50)
+# Force output immediately
+sys.stdout.flush()
+sys.stderr.flush()
+
+print("=" * 50, flush=True)
+print("Starting FastAPI application...", flush=True)
+print("=" * 50, flush=True)
+
+try:
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.middleware.cors import CORSMiddleware
+    print("✅ FastAPI imported", flush=True)
+    
+    from database import engine, Base
+    print("✅ Database imported", flush=True)
+    
+    from routes import auth, tts, payments, video
+    print("✅ Routes imported", flush=True)
+    
+    print("DEBUG_DATABASE_URL:", os.getenv("DATABASE_URL"), flush=True)
+    print("=" * 50, flush=True)
+except Exception as e:
+    print(f"❌ Import error: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
 
 # Create database tables if they don't exist (with error handling)
 try:
