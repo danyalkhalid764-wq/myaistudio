@@ -130,7 +130,7 @@ async def create_slideshow_video(
                 new_w, new_h = int(iw * scale), int(ih * scale)
                 print(f"🔍 Scaled to: {new_w}x{new_h} (scale: {scale:.2f})", flush=True)
                 
-                # Resize image to fill canvas
+                # Resize image to fill canvas - this ensures image is visible
                 clip = clip.resize((new_w, new_h))
                 
                 # Apply slide effects if enabled
@@ -139,9 +139,9 @@ async def create_slideshow_video(
                     transition_lower = transition.lower()
                     if transition_lower in ["kenburns", "ken_burns"]:
                         # Ken Burns effect: slow zoom and pan
-                        # Use relative scaling for animation
+                        # Start at 95% scale, zoom to 105%
                         clip = clip.resize(lambda t: 0.95 + 0.1 * t / dur)
-                        # Pan from top-left to center
+                        # Position: start from top-left, end at center
                         clip = clip.set_position(lambda t: (
                             -(new_w * (0.95 + 0.1 * t / dur) - W) / 2,
                             -(new_h * (0.95 + 0.1 * t / dur) - H) / 2
@@ -167,16 +167,22 @@ async def create_slideshow_video(
                     # No slide effect: center the image, fill canvas
                     clip = clip.set_position("center")
 
+                # Set duration for the clip
+                clip = clip.set_duration(dur)
+                
                 # Create background (black for contrast)
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
 
                 # Composite image on background - ensure image is on top
+                # Use bg_color=None to make background transparent, or keep black
                 final_clip = CompositeVideoClip(
                     [background, clip],
-                    size=(W, H)
+                    size=(W, H),
+                    bg_color=(0, 0, 0)  # Black background
                 ).set_duration(dur)
                 
-                print(f"✅ Clip {idx+1} created: {final_clip.size}, duration: {dur}s", flush=True)
+                print(f"✅ Clip {idx+1} created: size={final_clip.size}, duration={dur}s", flush=True)
+                print(f"   Image clip size: {clip.size}, position: center", flush=True)
 
                 clips.append(final_clip)
 
