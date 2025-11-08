@@ -123,37 +123,33 @@ async def create_slideshow_video(
                 print(f"📂 Loading image from: {path}", flush=True)
                 print(f"📂 File exists: {os.path.exists(path)}, size: {os.path.getsize(path) if os.path.exists(path) else 0} bytes", flush=True)
                 
-                # Load image clip - ensure it loads correctly
+                # Load image clip
                 try:
                     clip = ImageClip(path)
                     iw, ih = clip.size
-                    print(f"📷 Image {idx+1} loaded successfully - original size: {iw}x{ih}", flush=True)
+                    print(f"📷 Image {idx+1} loaded - original size: {iw}x{ih}", flush=True)
                 except Exception as e:
                     print(f"❌ Failed to load image {idx+1}: {e}", flush=True)
                     raise HTTPException(status_code=500, detail=f"Failed to load image {idx+1}: {str(e)}")
 
-                # Calculate scale to fill canvas (use max to ensure image fills screen)
+                # Calculate scale to fill canvas
                 scale = max(W / iw, H / ih)
                 new_w, new_h = int(iw * scale), int(ih * scale)
                 print(f"🔍 Scale: {scale:.2f}, scaled size: {new_w}x{new_h}", flush=True)
                 
-                # Resize image to fill canvas
+                # Resize image
                 clip = clip.resize((new_w, new_h))
-                print(f"✅ Image {idx+1} resized to {clip.size}", flush=True)
                 
-                # Set duration - ImageClip needs duration to become a video
+                # Set duration - CRITICAL for ImageClip
                 clip = clip.set_duration(dur)
-                print(f"✅ Image {idx+1} duration set to {dur}s", flush=True)
                 
-                # Position image in center
+                # Position at center
                 clip = clip.set_position("center")
                 
-                # Create background
-                background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
-                print(f"✅ Background created: {background.size}", flush=True)
+                # Create white background (easier to see if image is there)
+                background = ColorClip(size=(W, H), color=(255, 255, 255), duration=dur)
                 
-                # Composite: Put image on top of background
-                # Use simple composition - background first, then image
+                # Composite: background first, then image
                 final_clip = CompositeVideoClip(
                     [background, clip],
                     size=(W, H)
@@ -161,16 +157,15 @@ async def create_slideshow_video(
                 
                 print(f"✅ Clip {idx+1} created - size: {final_clip.size}, duration: {final_clip.duration}s", flush=True)
                 
-                # CRITICAL: Verify the clip actually has image content
+                # Verify frame has content
                 try:
-                    test_frame = final_clip.get_frame(0.5)
-                    non_black_pixels = (test_frame > 10).sum()  # Count pixels that aren't black (threshold 10)
-                    print(f"✅ Clip {idx+1} frame check - shape: {test_frame.shape}, non-black pixels: {non_black_pixels}", flush=True)
-                    if non_black_pixels < 100:  # Less than 100 non-black pixels is suspicious
-                        print(f"⚠️ WARNING: Clip {idx+1} appears to be mostly black! Image might not be visible.", flush=True)
-                        print(f"   Frame min: {test_frame.min()}, max: {test_frame.max()}, mean: {test_frame.mean()}", flush=True)
+                    frame = final_clip.get_frame(0.5)
+                    non_white = (frame < 250).sum()  # Count non-white pixels
+                    print(f"✅ Clip {idx+1} frame - shape: {frame.shape}, non-white pixels: {non_white}", flush=True)
+                    if non_white < 1000:
+                        print(f"⚠️ WARNING: Clip {idx+1} might be empty! non-white pixels: {non_white}", flush=True)
                 except Exception as e:
-                    print(f"⚠️ Warning: Could not verify clip {idx+1} frame: {e}", flush=True)
+                    print(f"⚠️ Could not verify clip {idx+1}: {e}", flush=True)
 
                 clips.append(final_clip)
 
