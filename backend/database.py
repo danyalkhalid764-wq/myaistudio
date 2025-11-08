@@ -35,6 +35,13 @@ else:
 # Create engine with appropriate settings
 if DATABASE_URL.startswith("sqlite"):
     # SQLite configuration
+    # Ensure the database directory exists (for Railway)
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if db_path != ":memory:":
+        db_dir = os.path.dirname(os.path.abspath(db_path))
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+    
     engine = create_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False},  # Required for SQLite
