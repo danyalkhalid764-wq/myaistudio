@@ -86,6 +86,37 @@ app.add_middleware(
     max_age=3600,
 )
 
+# Global exception handler to ensure CORS headers are included in error responses
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi import Request, status
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler to ensure CORS headers are included in all error responses"""
+    import traceback
+    error_detail = str(exc)
+    traceback_str = traceback.format_exc()
+    print(f"❌ Global exception handler: {error_detail}", flush=True)
+    print(f"Traceback: {traceback_str}", flush=True)
+    
+    # Return JSON response with CORS headers (middleware will add them)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": "Internal server error",
+            "error": error_detail
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with CORS headers"""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}
+    )
+
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(tts.router, prefix="/api", tags=["text-to-speech"])
