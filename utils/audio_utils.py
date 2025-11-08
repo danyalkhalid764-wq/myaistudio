@@ -8,19 +8,31 @@ load_dotenv()
 
 # Configure pydub to use ffmpeg
 # Try to find ffmpeg from imageio-ffmpeg first, then system ffmpeg
+ffmpeg_binary = None
 try:
     import imageio_ffmpeg
     ffmpeg_binary = imageio_ffmpeg.get_ffmpeg_exe()
     os.environ["PATH"] = os.path.dirname(ffmpeg_binary) + os.pathsep + os.environ.get("PATH", "")
+    # Set pydub's ffmpeg path directly
+    os.environ["FFMPEG_BINARY"] = ffmpeg_binary
 except Exception:
     # Fallback to system ffmpeg
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
         os.environ["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
+        os.environ["FFMPEG_BINARY"] = ffmpeg_path
+        ffmpeg_binary = ffmpeg_path
 
 # Try to import pydub, fallback if not available
 try:
+    # Set pydub's AudioSegment to use our ffmpeg binary if found
+    if ffmpeg_binary:
+        os.environ["PATH"] = os.path.dirname(ffmpeg_binary) + os.pathsep + os.environ.get("PATH", "")
+    
     from pydub import AudioSegment
+    # Configure AudioSegment to use our ffmpeg binary
+    if ffmpeg_binary and hasattr(AudioSegment, 'converter'):
+        AudioSegment.converter = ffmpeg_binary
     PYDUB_AVAILABLE = True
 except ImportError:
     PYDUB_AVAILABLE = False
