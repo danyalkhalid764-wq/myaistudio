@@ -16,15 +16,18 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
 # Explicit OPTIONS handlers for CORS preflight requests
-# FastAPI's CORS middleware should handle these, but explicit handlers ensure compatibility
+# FastAPI's CORS middleware should handle these automatically, but explicit handlers
+# ensure compatibility with all browsers and prevent validation errors
+from fastapi import Request
+from fastapi.responses import Response
+
 @router.options("/register")
 @router.options("/login")
 @router.options("/me")
-async def options_handler():
-    """Handle CORS preflight OPTIONS requests"""
-    from fastapi.responses import Response
-    # Return empty response with 200 status
-    # CORS middleware will add the appropriate headers
+async def options_handler(request: Request):
+    """Handle CORS preflight OPTIONS requests - no validation, just return 200"""
+    # Return empty 200 response - CORS middleware will add headers
+    # This handler prevents FastAPI from trying to validate the OPTIONS request
     return Response(status_code=200)
 
 

@@ -78,13 +78,15 @@ cors_origins = [
 if hasattr(settings, 'ALLOWED_ORIGINS'):
     cors_origins.extend([origin for origin in settings.ALLOWED_ORIGINS if origin not in cors_origins])
 
+# CORS middleware configuration
+# This MUST be added before routers to handle OPTIONS preflight requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
-    allow_headers=["*", "Authorization", "Content-Type", "Accept", "Range"],
-    expose_headers=["*", "Content-Length", "Content-Range", "Accept-Ranges", "Content-Disposition", "Content-Type"],
+    allow_headers=["*"],  # Allow all headers - "*" is more permissive
+    expose_headers=["*"],
     max_age=3600,
 )
 
