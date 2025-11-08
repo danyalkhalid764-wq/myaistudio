@@ -115,34 +115,47 @@ def run_migrations_online():
     print("=" * 50)
     print("Running Alembic migrations online...")
     print("=" * 50)
-    configuration = config.get_section(config.config_ini_section)
-    if configuration is None:
-        configuration = {}
-    db_url = get_url()
-    print(f"Database URL: {db_url[:50]}...")
-    configuration["sqlalchemy.url"] = db_url
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-        future=True,
-    )
-    with connectable.connect() as connection:
-        # Ensure alembic_version table has correct structure before running migrations
-        print("Ensuring alembic_version table structure...")
-        ensure_alembic_version_table(connection)
-        connection.commit()
+    try:
+        configuration = config.get_section(config.config_ini_section)
+        if configuration is None:
+            configuration = {}
+        db_url = get_url()
+        print(f"Database URL: {db_url[:50]}...")
+        configuration["sqlalchemy.url"] = db_url
         
-        print("Running migrations...")
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
+        print("Creating database engine...")
+        connectable = engine_from_config(
+            configuration,
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+            future=True,
         )
-        with context.begin_transaction():
-            context.run_migrations()
-        print("✅ Migrations completed successfully!")
+        
+        print("Connecting to database...")
+        with connectable.connect() as connection:
+            # Ensure alembic_version table has correct structure before running migrations
+            print("Ensuring alembic_version table structure...")
+            ensure_alembic_version_table(connection)
+            connection.commit()
+            
+            print("Configuring Alembic context...")
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                compare_type=True,
+            )
+            
+            print("Running migrations...")
+            with context.begin_transaction():
+                context.run_migrations()
+            print("✅ Migrations completed successfully!")
+            print("=" * 50)
+    except Exception as e:
+        print(f"❌ Error running migrations: {e}")
+        import traceback
+        traceback.print_exc()
         print("=" * 50)
+        # Don't exit - let the server start anyway
 
 if context.is_offline_mode():
     print("Running migrations in offline mode...")
