@@ -29,51 +29,73 @@ def get_url():
     # Prefer env var; fallback to application's DATABASE_URL
     url = os.getenv("DATABASE_URL") or DATABASE_URL
     if not url:
-        raise Exception("DATABASE_URL not configured. Set DATABASE_URL in environment or database.py.")
+        # Use SQLite for local development if DATABASE_URL is not set
+        url = "sqlite:///./myaistudio.db"
+        print("Using SQLite database for local development")
     return url
 
 def ensure_alembic_version_table(connection):
     """
-    Ensure alembic_version table exists with VARCHAR(255) column size.
-    This fixes the issue where Alembic creates the table with VARCHAR(32) by default.
+    Ensure alembic_version table exists with correct column size.
+    Supports both SQLite and PostgreSQL.
     """
     try:
-        # Check if alembic_version table exists
-        result = connection.execute(text("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name = 'alembic_version';
-        """))
-        exists = result.fetchone() is not None
+        # Detect database type from connection
+        db_type = connection.dialect.name
         
-        if exists:
-            # Check current column size
+        if db_type == 'sqlite':
+            # SQLite: Check if table exists
             result = connection.execute(text("""
-                SELECT character_maximum_length 
-                FROM information_schema.columns 
-                WHERE table_name = 'alembic_version' 
-                AND column_name = 'version_num';
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='alembic_version';
             """))
-            current_size = result.fetchone()
-            if current_size and current_size[0] and current_size[0] < 255:
-                # Alter column to support longer version names
+            exists = result.fetchone() is not None
+            
+            if not exists:
+                # Create table with TEXT (no size limit in SQLite)
                 connection.execute(text("""
-                    ALTER TABLE alembic_version 
-                    ALTER COLUMN version_num TYPE VARCHAR(255);
+                    CREATE TABLE alembic_version (
+                        version_num TEXT NOT NULL PRIMARY KEY
+                    );
                 """))
-                print(f"✅ Fixed alembic_version.version_num column size from {current_size[0]} to 255")
+                print("Created alembic_version table (SQLite)")
         else:
-            # Create table with correct column size
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS alembic_version (
-                    version_num VARCHAR(255) NOT NULL,
-                    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
-                );
+            # PostgreSQL: Check if table exists
+            result = connection.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'alembic_version';
             """))
-            print("✅ Created alembic_version table with VARCHAR(255)")
+            exists = result.fetchone() is not None
+            
+            if exists:
+                # Check current column size
+                result = connection.execute(text("""
+                    SELECT character_maximum_length 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'alembic_version' 
+                    AND column_name = 'version_num';
+                """))
+                current_size = result.fetchone()
+                if current_size and current_size[0] and current_size[0] < 255:
+                    # Alter column to support longer version names
+                    connection.execute(text("""
+                        ALTER TABLE alembic_version 
+                        ALTER COLUMN version_num TYPE VARCHAR(255);
+                    """))
+                    print(f"Fixed alembic_version.version_num column size from {current_size[0]} to 255")
+            else:
+                # Create table with correct column size
+                connection.execute(text("""
+                    CREATE TABLE IF NOT EXISTS alembic_version (
+                        version_num VARCHAR(255) NOT NULL,
+                        CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+                    );
+                """))
+                print("Created alembic_version table with VARCHAR(255) (PostgreSQL)")
     except Exception as e:
-        print(f"⚠️  Warning: Could not ensure alembic_version table structure: {e}")
+        print(f"Warning: Could not ensure alembic_version table structure: {e}")
         # Don't fail migrations if this check fails
 
 def run_migrations_offline():

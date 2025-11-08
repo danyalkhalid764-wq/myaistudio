@@ -8,7 +8,16 @@ from utils.jwt_handler import verify_password, get_password_hash, create_access_
 from datetime import timedelta
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+# OAuth2PasswordBearer with auto_error=False to allow OPTIONS requests
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
+
+
+# Explicit OPTIONS handlers for CORS preflight
+@router.options("/login")
+@router.options("/register")
+@router.options("/me")
+async def options_handler():
+    return {"message": "OK"}
 
 
 @router.post("/register", response_model=UserResponse)
@@ -67,6 +76,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # Handle None token (e.g., from OPTIONS preflight requests)
+    if token is None:
+        raise credentials_exception
 
     email = verify_token(token)
     if email is None:

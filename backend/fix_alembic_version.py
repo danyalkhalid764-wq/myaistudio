@@ -59,3 +59,6 @@ except Exception as e:
 
 print("\n🎉 Fix complete! You can now run migrations again.")
 
+
+
+

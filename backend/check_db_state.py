@@ -59,3 +59,6 @@ except Exception as e:
     print(f"❌ Error checking database: {e}")
     exit(1)
 
+
+
+
