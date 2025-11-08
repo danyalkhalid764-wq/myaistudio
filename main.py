@@ -1,9 +1,30 @@
 import sys
 import os
+import shutil
 
 # Force output immediately
 sys.stdout.flush()
 sys.stderr.flush()
+
+# Configure ffmpeg PATH before any imports that might use it (pydub, moviepy)
+# This ensures ffmpeg is available when pydub/moviepy check for it at import time
+try:
+    import imageio_ffmpeg
+    ffmpeg_binary = imageio_ffmpeg.get_ffmpeg_exe()
+    ffmpeg_dir = os.path.dirname(ffmpeg_binary)
+    if ffmpeg_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+    print(f"✅ Configured ffmpeg from imageio-ffmpeg: {ffmpeg_binary}", flush=True)
+except Exception:
+    # Fallback to system ffmpeg
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        ffmpeg_dir = os.path.dirname(ffmpeg_path)
+        if ffmpeg_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+        print(f"✅ Configured system ffmpeg: {ffmpeg_path}", flush=True)
+    else:
+        print("⚠️ ffmpeg not found in PATH - video/audio features may not work", flush=True)
 
 print("=" * 50, flush=True)
 print("Starting FastAPI application...", flush=True)
