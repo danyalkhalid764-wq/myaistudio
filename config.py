@@ -26,7 +26,7 @@ class Settings:
 
     # Frontend and Backend URLs - UPDATED FOR PRODUCTION
     FRONTEND_URL = os.getenv("FRONTEND_URL", "https://picvoice3labc.netlify.app")
-    BACKEND_URL = os.getenv("BACKEND_URL", "https://pakistani-project-backend.up.railway.app")
+    BACKEND_URL = os.getenv("BACKEND_URL", "https://pakistani-project-backend-production.up.railway.app")
 
     # CORS Settings - UPDATED WITH NETLIFY DOMAIN
     NETLIFY_URL = os.getenv("NETLIFY_URL", "https://picvoice3labc.netlify.app")
