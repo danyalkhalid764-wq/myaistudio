@@ -6,32 +6,39 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configure pydub to use ffmpeg
-# Try to find ffmpeg from imageio-ffmpeg first, then system ffmpeg
+# Configure pydub to use ffmpeg BEFORE importing pydub
+# This prevents the warning from appearing when pydub checks for ffmpeg at import time
 ffmpeg_binary = None
 try:
     import imageio_ffmpeg
     ffmpeg_binary = imageio_ffmpeg.get_ffmpeg_exe()
-    os.environ["PATH"] = os.path.dirname(ffmpeg_binary) + os.pathsep + os.environ.get("PATH", "")
-    # Set pydub's ffmpeg path directly
+    ffmpeg_dir = os.path.dirname(ffmpeg_binary)
+    # Add to PATH so pydub can find it
+    if ffmpeg_dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+    # Set environment variable that pydub checks
     os.environ["FFMPEG_BINARY"] = ffmpeg_binary
 except Exception:
     # Fallback to system ffmpeg
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path:
-        os.environ["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
+        ffmpeg_dir = os.path.dirname(ffmpeg_path)
+        if ffmpeg_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
         os.environ["FFMPEG_BINARY"] = ffmpeg_path
         ffmpeg_binary = ffmpeg_path
 
+# Suppress pydub's warning by setting the converter before import
+# pydub checks for ffmpeg in utils.py at import time, so we need to configure it first
+import warnings
+warnings.filterwarnings("ignore", message=".*ffmpeg.*", category=RuntimeWarning)
+
 # Try to import pydub, fallback if not available
 try:
-    # Set pydub's AudioSegment to use our ffmpeg binary if found
-    if ffmpeg_binary:
-        os.environ["PATH"] = os.path.dirname(ffmpeg_binary) + os.pathsep + os.environ.get("PATH", "")
-    
     from pydub import AudioSegment
-    # Configure AudioSegment to use our ffmpeg binary
-    if ffmpeg_binary and hasattr(AudioSegment, 'converter'):
+    # Configure AudioSegment to use our ffmpeg binary if found
+    if ffmpeg_binary:
+        # Set the converter directly to avoid pydub's check
         AudioSegment.converter = ffmpeg_binary
     PYDUB_AVAILABLE = True
 except ImportError:
