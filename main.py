@@ -87,13 +87,19 @@ app.add_middleware(
 )
 
 # Global exception handler to ensure CORS headers are included in error responses
+# Note: HTTPException is already handled by FastAPI with CORS headers
+# This handler catches unexpected exceptions
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi import Request, status
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler to ensure CORS headers are included in all error responses"""
+    # Don't handle HTTPException - FastAPI already handles it with CORS
+    if isinstance(exc, HTTPException):
+        raise exc
+    
     import traceback
     error_detail = str(exc)
     traceback_str = traceback.format_exc()
