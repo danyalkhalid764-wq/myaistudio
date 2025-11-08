@@ -20,6 +20,22 @@ try:
 except ImportError:
     pass
 
+# Configure MoviePy to use imageio-ffmpeg's ffmpeg binary
+try:
+    import imageio_ffmpeg
+    ffmpeg_binary = imageio_ffmpeg.get_ffmpeg_exe()
+    os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_binary
+    # Set MoviePy's ffmpeg path
+    import moviepy.config
+    moviepy.config.FFMPEG_BINARY = ffmpeg_binary
+except Exception as e:
+    # If imageio-ffmpeg is not available, try to use system ffmpeg
+    import shutil
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        import moviepy.config
+        moviepy.config.FFMPEG_BINARY = ffmpeg_path
+
 # MoviePy imports
 from moviepy.editor import ImageClip, concatenate_videoclips, CompositeVideoClip, ColorClip, vfx
 
