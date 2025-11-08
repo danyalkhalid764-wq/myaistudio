@@ -17,6 +17,12 @@ depends_on = None
 
 
 def upgrade():
+    # Detect database type for datetime defaults
+    bind = op.get_bind()
+    is_sqlite = bind.dialect.name == 'sqlite'
+    # SQLite uses datetime('now'), PostgreSQL uses now()
+    datetime_default = sa.text("(datetime('now'))") if is_sqlite else sa.text('now()')
+    
     # Users counters and reset date
     op.add_column('users', sa.Column('daily_voice_count', sa.Integer(), nullable=True))
     op.add_column('users', sa.Column('daily_video_count', sa.Integer(), nullable=True))
@@ -32,7 +38,7 @@ def upgrade():
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('video_url', sa.String(), nullable=False),
         sa.Column('duration_seconds', sa.Float(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id']),
         sa.PrimaryKeyConstraint('id')
     )

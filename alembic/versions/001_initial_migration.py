@@ -24,6 +24,11 @@ def upgrade() -> None:
     inspector = inspect(bind)
     existing_tables = inspector.get_table_names()
     
+    # Detect database type for datetime defaults
+    is_sqlite = bind.dialect.name == 'sqlite'
+    # SQLite uses datetime('now'), PostgreSQL uses now()
+    datetime_default = sa.text("(datetime('now'))") if is_sqlite else sa.text('now()')
+    
     if 'users' not in existing_tables:
         op.create_table('users',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -32,7 +37,7 @@ def upgrade() -> None:
         sa.Column('password_hash', sa.String(), nullable=False),
         sa.Column('plan', sa.String(), nullable=True),
         sa.Column('daily_count', sa.Integer(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=True),
         sa.PrimaryKeyConstraint('id')
         )
         op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
@@ -45,7 +50,7 @@ def upgrade() -> None:
         sa.Column('amount', sa.Float(), nullable=False),
         sa.Column('status', sa.String(), nullable=True),
         sa.Column('transaction_id', sa.String(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('transaction_id')
@@ -58,7 +63,7 @@ def upgrade() -> None:
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('text', sa.Text(), nullable=False),
         sa.Column('audio_url', sa.String(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=datetime_default, nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
         )
