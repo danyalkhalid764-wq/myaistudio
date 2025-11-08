@@ -68,6 +68,7 @@ from config import settings
 cors_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Vite dev server
     "https://picvoice3labc.netlify.app",         # your deployed frontend
     "https://pakistani-project-frontend.netlify.app",  # backup / test domain
     "https://startling-cobbler-7dd158.netlify.app",  # current Netlify domain
@@ -82,7 +83,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    expose_headers=["*", "Content-Length", "Content-Range", "Accept-Ranges", "Content-Disposition"],
     max_age=3600,
 )
 

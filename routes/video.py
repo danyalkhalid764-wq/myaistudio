@@ -1,8 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import uuid
+import io
 from datetime import datetime, timedelta
 from database import get_db
 from models import GeneratedVideo
@@ -40,6 +42,10 @@ except Exception as e:
 from moviepy.editor import ImageClip, concatenate_videoclips, CompositeVideoClip, ColorClip, vfx
 
 router = APIRouter()
+
+# In-memory video cache (for Railway's ephemeral storage)
+# In production, consider using Redis or similar for better scalability
+_video_cache = {}
 
 
 @router.post("/slideshow")
@@ -182,15 +188,6 @@ async def create_slideshow_video(
             if final is None:
                 raise HTTPException(status_code=500, detail="Failed to create video")
 
-            # Output directory for generated videos
-            # Use app directory for generated_videos (writable location on Railway)
-            videos_dir = os.path.join(os.path.dirname(__file__), "..", "generated_videos")
-            videos_dir = os.path.abspath(videos_dir)
-            os.makedirs(videos_dir, exist_ok=True)
-
-            filename = f"slideshow_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}.mp4"
-            output_path = os.path.join(videos_dir, filename)
-
             # Verify final video has content before writing
             print(f"🎬 Final video: size={final.size}, duration={final.duration}s, fps={final.fps}", flush=True)
             try:
@@ -201,19 +198,26 @@ async def create_slideshow_video(
             except Exception as e:
                 print(f"⚠️ Warning: Could not verify final video frame: {e}", flush=True)
             
-            # Write video file - use proper settings for valid MP4
-            print(f"🎬 Writing video to: {output_path}", flush=True)
+            # CRITICAL: Ensure final video has proper FPS
+            if not hasattr(final, 'fps') or final.fps is None:
+                final = final.set_fps(24)
+                print(f"✅ Set FPS to 24", flush=True)
+            
+            # Generate video in memory buffer for streaming (works with Railway's ephemeral storage)
+            print(f"🎬 Generating video in memory for streaming...", flush=True)
             print(f"📊 Final video: size={final.size}, duration={final.duration}s", flush=True)
             
             try:
-                # CRITICAL: Ensure final video has proper FPS
-                if not hasattr(final, 'fps') or final.fps is None:
-                    final = final.set_fps(24)
-                    print(f"✅ Set FPS to 24", flush=True)
+                # Create a temporary file path for MoviePy to write to
+                # Use tempfile for better cross-platform support
+                import tempfile
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                temp_path = temp_file.name
+                temp_file.close()
                 
-                # Write video with proper encoding settings
+                # Write video to temporary file
                 final.write_videofile(
-                    output_path,
+                    temp_path,
                     fps=24,
                     codec="libx264",
                     preset="medium",  # Use medium preset for better compatibility
@@ -227,23 +231,28 @@ async def create_slideshow_video(
                     remove_temp=True,  # Clean up temp files
                 )
                 
-                print(f"✅ Video file written successfully: {output_path}", flush=True)
-                file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
-                print(f"📁 File size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
+                # Read the video file into memory
+                with open(temp_path, 'rb') as video_file:
+                    video_bytes = video_file.read()
+                
+                # Clean up temporary file immediately
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+                
+                file_size = len(video_bytes)
+                print(f"✅ Video generated in memory - size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
                 
                 if file_size < 1000:
                     print(f"❌ ERROR: Video file is too small ({file_size} bytes) - file is corrupted!", flush=True)
                     raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
-                
-                # Verify file is readable
-                if not os.path.exists(output_path):
-                    raise HTTPException(status_code=500, detail="Video file was not created")
                     
             except Exception as e:
-                print(f"❌ Failed to write video file: {e}", flush=True)
+                print(f"❌ Failed to generate video: {e}", flush=True)
                 import traceback
                 traceback.print_exc()
-                raise HTTPException(status_code=500, detail=f"Failed to write video: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to generate video: {str(e)}")
             
             # Clean up clips to free memory
             try:
@@ -253,23 +262,31 @@ async def create_slideshow_video(
             except Exception:
                 pass
 
-            # Persist GeneratedVideo record for current user
+            # Generate a unique filename for the video
+            filename = f"slideshow_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}.mp4"
+            
+            # Persist GeneratedVideo record for current user (with a special marker for in-memory videos)
             try:
-                gv = GeneratedVideo(user_id=current_user.id, video_url=f"/static/videos/{filename}")
+                gv = GeneratedVideo(user_id=current_user.id, video_url=f"/api/video/stream/{filename}")
                 db.add(gv)
                 db.commit()
             except Exception:
                 db.rollback()
 
-            # Return full URL for production, relative URL for local dev
+            # Store video in memory cache (simple in-memory storage for Railway)
+            # In production, you might want to use Redis or similar, but for now this works
+            _video_cache[filename] = video_bytes
+            print(f"💾 Video cached in memory: {filename} ({len(video_bytes)} bytes)", flush=True)
+            
+            # Return streaming URL
             from config import settings
             backend_url = os.getenv("BACKEND_URL", settings.BACKEND_URL)
             if backend_url and not backend_url.startswith("http://localhost"):
                 # Production: return full URL
-                video_url = f"{backend_url}/static/videos/{filename}"
+                video_url = f"{backend_url}/api/video/stream/{filename}"
             else:
                 # Local dev: return relative URL (frontend will handle it)
-                video_url = f"/static/videos/{filename}"
+                video_url = f"/api/video/stream/{filename}"
 
             print(f"✅ Video generated successfully: {filename}", flush=True)
             return {
@@ -298,4 +315,41 @@ async def create_slideshow_video(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Video generation failed: {error_detail}"
         )
+
+
+@router.get("/stream/{filename}")
+async def stream_video(
+    filename: str,
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Stream video from memory cache.
+    This endpoint serves videos that were generated in-memory (for Railway's ephemeral storage).
+    """
+    try:
+        # Remove query parameters if present
+        filename = filename.split('?')[0]
+        
+        # Check if video exists in cache
+        if filename not in _video_cache:
+            raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
+        
+        video_bytes = _video_cache[filename]
+        
+        # Create a streaming response from bytes
+        return StreamingResponse(
+            io.BytesIO(video_bytes),
+            media_type="video/mp4",
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "Content-Length": str(len(video_bytes)),
+                "Accept-Ranges": "bytes",
+                "Cache-Control": "public, max-age=3600",
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error streaming video: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Failed to stream video: {str(e)}")
 
