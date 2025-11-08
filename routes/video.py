@@ -63,7 +63,9 @@ async def create_slideshow_video(
             raise HTTPException(status_code=400, detail="Please upload 2 to 3 images.")
 
         # Validate formats and persist temporarily
-        temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tmp_uploads"))
+        # Use app directory for tmp_uploads (writable location on Railway)
+        temp_dir = os.path.join(os.path.dirname(__file__), "..", "tmp_uploads")
+        temp_dir = os.path.abspath(temp_dir)
         os.makedirs(temp_dir, exist_ok=True)
 
         saved_paths: List[str] = []
