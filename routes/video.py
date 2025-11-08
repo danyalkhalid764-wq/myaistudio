@@ -137,33 +137,26 @@ async def create_slideshow_video(
                 new_w, new_h = int(iw * scale), int(ih * scale)
                 print(f"🔍 Scale: {scale:.2f}, scaled size: {new_w}x{new_h}", flush=True)
                 
-                # Resize image
-                clip = clip.resize((new_w, new_h))
+                # Resize image to EXACTLY match canvas size (fill canvas completely)
+                clip = clip.resize((W, H))
+                print(f"✅ Image {idx+1} resized to canvas size: {W}x{H}", flush=True)
                 
-                # Set duration - CRITICAL for ImageClip
+                # Set duration - CRITICAL for ImageClip to work
                 clip = clip.set_duration(dur)
                 
-                # Position at center
-                clip = clip.set_position("center")
-                
-                # Create white background (easier to see if image is there)
-                background = ColorClip(size=(W, H), color=(255, 255, 255), duration=dur)
-                
-                # Composite: background first, then image
-                final_clip = CompositeVideoClip(
-                    [background, clip],
-                    size=(W, H)
-                ).set_duration(dur)
+                # Use the clip directly - no composite needed if image fills canvas
+                final_clip = clip
                 
                 print(f"✅ Clip {idx+1} created - size: {final_clip.size}, duration: {final_clip.duration}s", flush=True)
                 
                 # Verify frame has content
                 try:
                     frame = final_clip.get_frame(0.5)
-                    non_white = (frame < 250).sum()  # Count non-white pixels
-                    print(f"✅ Clip {idx+1} frame - shape: {frame.shape}, non-white pixels: {non_white}", flush=True)
-                    if non_white < 1000:
-                        print(f"⚠️ WARNING: Clip {idx+1} might be empty! non-white pixels: {non_white}", flush=True)
+                    non_black = (frame > 10).sum()  # Count non-black pixels
+                    print(f"✅ Clip {idx+1} frame - shape: {frame.shape}, non-black pixels: {non_black}", flush=True)
+                    print(f"   Frame stats - min: {frame.min()}, max: {frame.max()}, mean: {frame.mean():.1f}", flush=True)
+                    if non_black < 1000:
+                        print(f"⚠️ WARNING: Clip {idx+1} might be empty! non-black pixels: {non_black}", flush=True)
                 except Exception as e:
                     print(f"⚠️ Could not verify clip {idx+1}: {e}", flush=True)
 
