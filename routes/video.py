@@ -134,8 +134,10 @@ async def create_slideshow_video(
                 clip = clip.resize((new_w, new_h))
                 
                 # Apply slide effects if enabled
-                if slide_effect and transition != "none":
-                    if transition == "ken_burns":
+                # Note: Frontend sends "kenburns" but we check for both "kenburns" and "ken_burns"
+                if slide_effect and transition and transition.lower() not in ["none", "false", ""]:
+                    transition_lower = transition.lower()
+                    if transition_lower in ["kenburns", "ken_burns"]:
                         # Ken Burns effect: slow zoom and pan
                         # Use relative scaling for animation
                         clip = clip.resize(lambda t: 0.95 + 0.1 * t / dur)
@@ -144,15 +146,15 @@ async def create_slideshow_video(
                             -(new_w * (0.95 + 0.1 * t / dur) - W) / 2,
                             -(new_h * (0.95 + 0.1 * t / dur) - H) / 2
                         ))
-                    elif transition == "zoom_in":
+                    elif transition_lower == "zoom_in":
                         # Zoom in effect: start normal, zoom in
                         clip = clip.resize(lambda t: 1.0 + 0.15 * t / dur)
                         clip = clip.set_position("center")
-                    elif transition == "zoom_out":
+                    elif transition_lower == "zoom_out":
                         # Zoom out effect: start zoomed, zoom out
                         clip = clip.resize(lambda t: 1.15 - 0.15 * t / dur)
                         clip = clip.set_position("center")
-                    elif transition == "slide":
+                    elif transition_lower == "slide":
                         # Slide effect: image slides in from right
                         clip = clip.set_position(lambda t: (
                             W - (W + new_w) * (1 - t / dur),
