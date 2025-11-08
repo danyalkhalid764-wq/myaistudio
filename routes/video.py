@@ -205,9 +205,18 @@ async def create_slideshow_video(
             filename = f"slideshow_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}.mp4"
             output_path = os.path.join(videos_dir, filename)
 
+            # Verify final video has content before writing
+            print(f"🎬 Final video: size={final.size}, duration={final.duration}s, fps={final.fps}", flush=True)
+            try:
+                test_frame = final.get_frame(0.5)
+                print(f"✅ Final video verified - frame shape: {test_frame.shape}, non-zero pixels: {(test_frame > 0).sum()}", flush=True)
+                if (test_frame > 0).sum() == 0:
+                    print(f"⚠️ WARNING: Frame appears to be all black! This might indicate an issue with image composition.", flush=True)
+            except Exception as e:
+                print(f"⚠️ Warning: Could not verify final video frame: {e}", flush=True)
+            
             # Write video file with optimized settings for faster generation
             print(f"🎬 Writing video to: {output_path}", flush=True)
-            print(f"📊 Final video: size={final.size}, duration={final.duration}s, fps=24", flush=True)
             
             try:
                 final.write_videofile(
@@ -223,7 +232,11 @@ async def create_slideshow_video(
                     write_logfile=False,  # Disable logfile for faster processing
                 )
                 print(f"✅ Video file written successfully: {output_path}", flush=True)
-                print(f"📁 File size: {os.path.getsize(output_path) if os.path.exists(output_path) else 0} bytes", flush=True)
+                file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+                print(f"📁 File size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
+                
+                if file_size < 1000:  # Less than 1KB is suspicious
+                    print(f"⚠️ WARNING: Video file is very small ({file_size} bytes) - might be empty!", flush=True)
             except Exception as e:
                 print(f"❌ Failed to write video file: {e}", flush=True)
                 import traceback
