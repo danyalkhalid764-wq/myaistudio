@@ -100,6 +100,6 @@ except Exception as e:
 
 print("✅ Alembic version table check complete.")
 print("=" * 50)
-print("Next: Running Alembic migrations...")
+print("✅ Ready to start server!")
 print("=" * 50)
 
