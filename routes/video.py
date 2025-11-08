@@ -43,11 +43,7 @@ from moviepy.editor import ImageClip, concatenate_videoclips, CompositeVideoClip
 
 router = APIRouter()
 
-# In-memory video cache (for Railway's ephemeral storage)
-# In production, consider using Redis or similar for better scalability
-_video_cache = {}
-
-# Also save videos to disk as backup (Railway allows writes to app directory)
+# Simple: Save videos to disk (Railway allows writes to app directory)
 videos_dir = os.path.join(os.path.dirname(__file__), "..", "generated_videos")
 os.makedirs(videos_dir, exist_ok=True)
 print(f"📁 Video storage directory: {os.path.abspath(videos_dir)}", flush=True)
@@ -68,10 +64,9 @@ async def create_slideshow_video(
         print(f"📸 Number of images: {len(images)}", flush=True)
         print(f"⏱️ Duration: {duration_seconds} seconds", flush=True)
         
-        # Daily limit removed - no restrictions on video generation
-        # Validate number of images
-        if not (2 <= len(images) <= 3):
-            raise HTTPException(status_code=400, detail="Please upload 2 to 3 images.")
+        # Validate number of images (allow 2-4 images as requested)
+        if not (2 <= len(images) <= 4):
+            raise HTTPException(status_code=400, detail="Please upload 2 to 4 images.")
 
         # Validate formats and persist temporarily
         # Use app directory for tmp_uploads (writable location on Railway)
@@ -290,47 +285,39 @@ async def create_slideshow_video(
             # Generate a unique filename for the video
             filename = f"slideshow_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}.mp4"
             
-            # Persist GeneratedVideo record for current user (with a special marker for in-memory videos)
+            # Save video to disk (SIMPLE - no cache, just disk)
+            disk_path = os.path.join(videos_dir, filename)
             try:
-                gv = GeneratedVideo(user_id=current_user.id, video_url=f"/api/video/stream/{filename}")
+                with open(disk_path, 'wb') as f:
+                    f.write(video_bytes)
+                print(f"✅ Video saved to disk: {disk_path} ({len(video_bytes)} bytes)", flush=True)
+            except Exception as disk_error:
+                print(f"❌ Could not save video to disk: {disk_error}", flush=True)
+                raise HTTPException(status_code=500, detail=f"Failed to save video: {str(disk_error)}")
+            
+            # Persist GeneratedVideo record
+            try:
+                gv = GeneratedVideo(user_id=current_user.id, video_url=f"/static/videos/{filename}")
                 db.add(gv)
                 db.commit()
             except Exception:
                 db.rollback()
 
-            # Store video in memory cache AND save to disk as backup
-            _video_cache[filename] = video_bytes
-            print(f"💾 Video cached in memory: {filename} ({len(video_bytes)} bytes)", flush=True)
-            
-            # ALSO save to disk as backup (Railway allows writes to app directory)
-            disk_path = os.path.join(videos_dir, filename)
-            try:
-                with open(disk_path, 'wb') as f:
-                    f.write(video_bytes)
-                print(f"💾 Video also saved to disk: {disk_path}", flush=True)
-            except Exception as disk_error:
-                print(f"⚠️ Could not save video to disk: {disk_error}", flush=True)
-                # Continue anyway - memory cache should work
-            
-            # Return streaming URL (prefer streaming endpoint, fallback to static)
+            # Return simple static URL
             from config import settings
             backend_url = os.getenv("BACKEND_URL", settings.BACKEND_URL)
             if backend_url and not backend_url.startswith("http://localhost"):
-                # Production: return full URL for streaming endpoint
-                video_url = f"{backend_url}/api/video/stream/{filename}"
-                # Also provide static fallback URL in response
-                static_url = f"{backend_url}/static/videos/{filename}"
+                # Production: return full URL
+                video_url = f"{backend_url}/static/videos/{filename}"
             else:
-                # Local dev: return relative URL (frontend will handle it)
-                video_url = f"/api/video/stream/{filename}"
-                static_url = f"/static/videos/{filename}"
+                # Local dev: return relative URL
+                video_url = f"/static/videos/{filename}"
 
             print(f"✅ Video generated successfully: {filename}", flush=True)
             return {
                 "success": True,
                 "message": "Slideshow video generated successfully.",
                 "video_url": video_url,
-                "static_url": static_url,  # Fallback URL if streaming fails
             }
         finally:
             # Cleanup temporary files
@@ -355,152 +342,5 @@ async def create_slideshow_video(
         )
 
 
-@router.get("/stream/{filename}")
-@router.head("/stream/{filename}")  # Support HEAD requests for video metadata
-async def stream_video(
-    filename: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user),
-):
-    """
-    Stream video from memory cache with proper CORS and range request support.
-    This endpoint serves videos that were generated in-memory (for Railway's ephemeral storage).
-    Supports HTTP Range requests for video seeking in browsers.
-    """
-    from fastapi import Request
-    from fastapi.responses import Response
-    
-    try:
-        # Remove query parameters if present
-        filename = filename.split('?')[0]
-        
-        print(f"🎬 Streaming video request: {filename} from user: {current_user.email}", flush=True)
-        print(f"📋 Cache size: {len(_video_cache)} videos", flush=True)
-        
-        # Check if video exists in cache OR on disk
-        video_bytes = None
-        
-        if filename in _video_cache:
-            video_bytes = _video_cache[filename]
-            print(f"✅ Video found in memory cache: {filename} ({len(video_bytes)} bytes)", flush=True)
-        else:
-            # Try to load from disk (backup if cache was cleared)
-            disk_path = os.path.join(videos_dir, filename)
-            if os.path.exists(disk_path) and os.path.isfile(disk_path):
-                try:
-                    with open(disk_path, 'rb') as f:
-                        video_bytes = f.read()
-                    # Reload into cache for next time
-                    _video_cache[filename] = video_bytes
-                    print(f"✅ Video loaded from disk and cached: {filename} ({len(video_bytes)} bytes)", flush=True)
-                except Exception as disk_error:
-                    print(f"⚠️ Could not load video from disk: {disk_error}", flush=True)
-        
-        if video_bytes is None:
-            print(f"❌ Video not found in cache or disk: {filename}", flush=True)
-            print(f"📋 Available videos in cache: {list(_video_cache.keys())[:10]}", flush=True)
-            
-            # Try to find the video in the database
-            try:
-                from models import GeneratedVideo
-                db_video = db.query(GeneratedVideo).filter(
-                    GeneratedVideo.video_url.like(f"%{filename}%")
-                ).filter(
-                    GeneratedVideo.user_id == current_user.id
-                ).first()
-                
-                if db_video:
-                    print(f"⚠️ Video found in database but not in cache/disk - cache was likely cleared", flush=True)
-                    raise HTTPException(
-                        status_code=410,  # Gone - resource was available but is no longer
-                        detail="Video was generated but is no longer available. Please generate a new video."
-                    )
-            except Exception as db_error:
-                print(f"⚠️ Database check error: {db_error}", flush=True)
-            
-            raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
-        
-        # Validate video bytes
-        if len(video_bytes) < 1000:
-            print(f"❌ Video file is too small: {len(video_bytes)} bytes", flush=True)
-            raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
-        
-        # Validate MP4 format
-        if len(video_bytes) >= 8:
-            mp4_signature = video_bytes[4:8]
-            if mp4_signature != b'ftyp':
-                print(f"⚠️ WARNING: Video may not be valid MP4 (signature: {mp4_signature})", flush=True)
-        
-        file_size = len(video_bytes)
-        print(f"✅ Video validated - size: {file_size} bytes, format: MP4", flush=True)
-        
-        # Handle HTTP Range requests for video seeking (required by browsers)
-        range_header = request.headers.get("range")
-        
-        if range_header:
-            # Parse range header (e.g., "bytes=0-1023")
-            try:
-                range_match = range_header.replace("bytes=", "").split("-")
-                start = int(range_match[0]) if range_match[0] else 0
-                end = int(range_match[1]) if range_match[1] else file_size - 1
-                
-                # Ensure valid range
-                start = max(0, start)
-                end = min(file_size - 1, end)
-                
-                if start > end:
-                    raise HTTPException(status_code=416, detail="Range Not Satisfiable")
-                
-                # Extract the requested byte range
-                content_length = end - start + 1
-                video_chunk = video_bytes[start:end + 1]
-                
-                print(f"📦 Serving range: bytes {start}-{end}/{file_size}", flush=True)
-                
-                # Return partial content response
-                return Response(
-                    content=video_chunk,
-                    status_code=206,  # Partial Content
-                    headers={
-                        "Content-Range": f"bytes {start}-{end}/{file_size}",
-                        "Accept-Ranges": "bytes",
-                        "Content-Length": str(content_length),
-                        "Content-Type": "video/mp4",
-                        "Cache-Control": "public, max-age=3600",
-                    },
-                    media_type="video/mp4",
-                )
-            except (ValueError, IndexError):
-                # Invalid range header, serve full file
-                pass
-        
-        # Serve full video file
-        video_stream = io.BytesIO(video_bytes)
-        video_stream.seek(0)
-        
-        # Create response with proper headers for video streaming
-        response = StreamingResponse(
-            video_stream,
-            media_type="video/mp4",
-            headers={
-                "Content-Disposition": f'inline; filename="{filename}"',
-                "Content-Length": str(file_size),
-                "Accept-Ranges": "bytes",
-                "Cache-Control": "public, max-age=3600",
-                "Content-Type": "video/mp4",
-                "X-Content-Type-Options": "nosniff",
-            }
-        )
-        
-        print(f"✅ Streaming response created for: {filename}", flush=True)
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error streaming video: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to stream video: {str(e)}")
+# REMOVED: Complex streaming endpoint - using simple static file serving instead
 

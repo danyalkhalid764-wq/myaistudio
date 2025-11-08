@@ -141,12 +141,12 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException
 
 @app.get("/static/videos/{filename}")
-async def serve_video_static(filename: str):
+async def serve_video(filename: str):
     """
-    Fallback static file handler to serve video files from disk.
-    This works as a backup if the streaming endpoint fails.
+    SIMPLE: Serve video files directly from disk.
+    This is the ONLY way videos are served - no cache, no streaming complexity.
     """
-    from fastapi.responses import Response
+    from fastapi.responses import FileResponse
     
     # Remove query parameters if present
     filename = filename.split('?')[0]
@@ -154,24 +154,19 @@ async def serve_video_static(filename: str):
     
     if os.path.exists(file_path) and os.path.isfile(file_path):
         file_size = os.path.getsize(file_path)
-        print(f"📁 Serving video from disk: {filename} ({file_size} bytes)", flush=True)
+        print(f"✅ Serving video: {filename} ({file_size} bytes)", flush=True)
         
-        # Read file and return with proper headers
-        with open(file_path, 'rb') as f:
-            video_bytes = f.read()
-        
-        return Response(
-            content=video_bytes,
+        # Use FileResponse - FastAPI handles range requests automatically
+        return FileResponse(
+            file_path,
             media_type="video/mp4",
             headers={
-                "Content-Length": str(file_size),
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "public, max-age=3600",
-                "Content-Type": "video/mp4",
             }
         )
     
-    print(f"❌ Video file not found on disk: {filename}", flush=True)
+    print(f"❌ Video not found: {filename}", flush=True)
     raise HTTPException(status_code=404, detail=f"Video file not found: {filename}")
 
 @app.get("/")
