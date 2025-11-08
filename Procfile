@@ -1,2 +1,1 @@
-web: cd backend && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
-
+web: cd backend && python init_alembic_version.py && python start_server.py
