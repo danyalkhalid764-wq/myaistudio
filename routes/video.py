@@ -130,17 +130,14 @@ async def create_slideshow_video(
                 new_w, new_h = int(iw * scale), int(ih * scale)
                 print(f"🔍 Scaled to: {new_w}x{new_h} (scale: {scale:.2f})", flush=True)
                 
-                # Resize image to fill canvas - this ensures image is visible
-                clip = clip.resize((new_w, new_h))
-                
                 # Apply slide effects if enabled
                 # Note: Frontend sends "kenburns" but we check for both "kenburns" and "ken_burns"
                 if slide_effect and transition and transition.lower() not in ["none", "false", ""]:
                     transition_lower = transition.lower()
                     if transition_lower in ["kenburns", "ken_burns"]:
                         # Ken Burns effect: slow zoom and pan
-                        # Start at 95% scale, zoom to 105%
-                        clip = clip.resize(lambda t: 0.95 + 0.1 * t / dur)
+                        # Resize with animation: start at 95%, end at 105%
+                        clip = clip.resize(lambda t: (0.95 + 0.1 * t / dur))
                         # Position: start from top-left, end at center
                         clip = clip.set_position(lambda t: (
                             -(new_w * (0.95 + 0.1 * t / dur) - W) / 2,
@@ -148,23 +145,27 @@ async def create_slideshow_video(
                         ))
                     elif transition_lower == "zoom_in":
                         # Zoom in effect: start normal, zoom in
-                        clip = clip.resize(lambda t: 1.0 + 0.15 * t / dur)
+                        clip = clip.resize(lambda t: (1.0 + 0.15 * t / dur))
                         clip = clip.set_position("center")
                     elif transition_lower == "zoom_out":
                         # Zoom out effect: start zoomed, zoom out
-                        clip = clip.resize(lambda t: 1.15 - 0.15 * t / dur)
+                        clip = clip.resize(lambda t: (1.15 - 0.15 * t / dur))
                         clip = clip.set_position("center")
                     elif transition_lower == "slide":
                         # Slide effect: image slides in from right
+                        # First resize to fill canvas
+                        clip = clip.resize((new_w, new_h))
                         clip = clip.set_position(lambda t: (
                             W - (W + new_w) * (1 - t / dur),
                             (H - new_h) / 2
                         ))
                     else:
                         # Default: center position, no animation
+                        clip = clip.resize((new_w, new_h))
                         clip = clip.set_position("center")
                 else:
                     # No slide effect: center the image, fill canvas
+                    clip = clip.resize((new_w, new_h))
                     clip = clip.set_position("center")
 
                 # Set duration for the clip
@@ -174,7 +175,6 @@ async def create_slideshow_video(
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
 
                 # Composite image on background - ensure image is on top
-                # Use bg_color=None to make background transparent, or keep black
                 final_clip = CompositeVideoClip(
                     [background, clip],
                     size=(W, H),
@@ -182,7 +182,7 @@ async def create_slideshow_video(
                 ).set_duration(dur)
                 
                 print(f"✅ Clip {idx+1} created: size={final_clip.size}, duration={dur}s", flush=True)
-                print(f"   Image clip size: {clip.size}, position: center", flush=True)
+                print(f"   Image clip size: {clip.size if hasattr(clip, 'size') else 'animated'}, position: center", flush=True)
 
                 clips.append(final_clip)
 
