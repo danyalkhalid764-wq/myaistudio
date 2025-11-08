@@ -312,21 +312,25 @@ async def create_slideshow_video(
                 print(f"⚠️ Could not save video to disk: {disk_error}", flush=True)
                 # Continue anyway - memory cache should work
             
-            # Return streaming URL
+            # Return streaming URL (prefer streaming endpoint, fallback to static)
             from config import settings
             backend_url = os.getenv("BACKEND_URL", settings.BACKEND_URL)
             if backend_url and not backend_url.startswith("http://localhost"):
-                # Production: return full URL
+                # Production: return full URL for streaming endpoint
                 video_url = f"{backend_url}/api/video/stream/{filename}"
+                # Also provide static fallback URL in response
+                static_url = f"{backend_url}/static/videos/{filename}"
             else:
                 # Local dev: return relative URL (frontend will handle it)
                 video_url = f"/api/video/stream/{filename}"
+                static_url = f"/static/videos/{filename}"
 
             print(f"✅ Video generated successfully: {filename}", flush=True)
             return {
                 "success": True,
                 "message": "Slideshow video generated successfully.",
                 "video_url": video_url,
+                "static_url": static_url,  # Fallback URL if streaming fails
             }
         finally:
             # Cleanup temporary files
