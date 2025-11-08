@@ -1,1 +1,1 @@
-web: python init_alembic_version.py; python start_server.py
+web: bash -c 'python init_alembic_version.py && alembic upgrade head && python main.py'

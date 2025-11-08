@@ -6,16 +6,53 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# PostgreSQL configuration from environment variable
+# Database configuration: Use SQLite for both local development and Railway
+# Check for DATABASE_URL environment variable first
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Temporary fallback to get the app running
 if not DATABASE_URL:
-    # Use SQLite as fallback for now
-    DATABASE_URL = "sqlite:///./test.db"
-    print("⚠️  DATABASE_URL not found, using SQLite fallback")
+    # Use SQLite for both local development and Railway
+    # SQLite works fine for Railway if you want a simple database solution
+    DATABASE_URL = "sqlite:///./myaistudio.db"
+    print("Using SQLite database (default)")
+    print(f"   Database file: {os.path.abspath('./myaistudio.db')}")
+else:
+    # Check if it's SQLite or PostgreSQL
+    if DATABASE_URL.startswith("sqlite"):
+        print("Using SQLite database (from DATABASE_URL)")
+        db_file = DATABASE_URL.replace("sqlite:///", "")
+        print(f"   Database file: {os.path.abspath(db_file)}")
+    else:
+        print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
 
-engine = create_engine(DATABASE_URL)
+# Create engine with appropriate settings
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite configuration
+    # Ensure the database directory exists (for Railway)
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    if db_path != ":memory:":
+        db_dir = os.path.dirname(os.path.abspath(db_path))
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+    
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},  # Required for SQLite
+        echo=False  # Set to True for SQL query logging
+    )
+else:
+    # PostgreSQL configuration with lazy connection
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,  # Verify connections before using
+        pool_recycle=300,    # Recycle connections after 5 minutes
+        connect_args={
+            "connect_timeout": 10,  # 10 second timeout
+        },
+        poolclass=None,  # Use default pool
+        # Don't connect on engine creation - connect lazily when needed
+    )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

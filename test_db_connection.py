@@ -25,11 +25,11 @@ except Exception as e:
     print(f"❌ Error loading .env file: {e}")
     exit(1)
 
-# Get DATABASE_URL
+# Get DATABASE_URL - use SQLite by default if not set
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
-    print("❌ DATABASE_URL not found in environment variables")
-    exit(1)
+    database_url = "sqlite:///./myaistudio.db"
+    print("⚠️ DATABASE_URL not found, using SQLite default: sqlite:///./myaistudio.db")
 
 print(f"\n🔗 DATABASE_URL: {database_url}")
 print("   (Password hidden for security)")

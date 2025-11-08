@@ -26,7 +26,7 @@ class Settings:
 
     # Frontend and Backend URLs - UPDATED FOR PRODUCTION
     FRONTEND_URL = os.getenv("FRONTEND_URL", "https://picvoice3labc.netlify.app")
-    BACKEND_URL = os.getenv("BACKEND_URL", "https://pakistani-project-backend.up.railway.app")
+    BACKEND_URL = os.getenv("BACKEND_URL", "https://pakistani-project-backend-production.up.railway.app")
 
     # CORS Settings - UPDATED WITH NETLIFY DOMAIN
     NETLIFY_URL = os.getenv("NETLIFY_URL", "https://picvoice3labc.netlify.app")
@@ -35,6 +35,7 @@ class Settings:
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "https://picvoice3labc.netlify.app",  # ← ADDED YOUR NETLIFY DOMAIN HERE
+        "https://startling-cobbler-7dd158.netlify.app",  # current Netlify domain
     ]
     # Add FRONTEND_URL to allowed origins if it's different from defaults
     if FRONTEND_URL not in ALLOWED_ORIGINS:
