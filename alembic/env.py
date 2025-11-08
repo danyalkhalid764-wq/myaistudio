@@ -88,10 +88,15 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
+    print("=" * 50)
+    print("Running Alembic migrations online...")
+    print("=" * 50)
     configuration = config.get_section(config.config_ini_section)
     if configuration is None:
         configuration = {}
-    configuration["sqlalchemy.url"] = get_url()
+    db_url = get_url()
+    print(f"Database URL: {db_url[:50]}...")
+    configuration["sqlalchemy.url"] = db_url
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
@@ -100,9 +105,11 @@ def run_migrations_online():
     )
     with connectable.connect() as connection:
         # Ensure alembic_version table has correct structure before running migrations
+        print("Ensuring alembic_version table structure...")
         ensure_alembic_version_table(connection)
         connection.commit()
         
+        print("Running migrations...")
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
@@ -110,8 +117,11 @@ def run_migrations_online():
         )
         with context.begin_transaction():
             context.run_migrations()
+        print("✅ Migrations completed successfully!")
+        print("=" * 50)
 
 if context.is_offline_mode():
+    print("Running migrations in offline mode...")
     run_migrations_offline()
 else:
     run_migrations_online()
