@@ -120,34 +120,47 @@ async def create_slideshow_video(
             print(f"🎬 Slide effect: {slide_effect}, Transition: {transition}", flush=True)
 
             for idx, path in enumerate(saved_paths):
-                # Load image clip
-                clip = ImageClip(path)
-                iw, ih = clip.size
-                print(f"📷 Image {idx+1} original size: {iw}x{ih}", flush=True)
+                print(f"📂 Loading image from: {path}", flush=True)
+                print(f"📂 File exists: {os.path.exists(path)}, size: {os.path.getsize(path) if os.path.exists(path) else 0} bytes", flush=True)
+                
+                # Load image clip - ensure it loads correctly
+                try:
+                    clip = ImageClip(path)
+                    iw, ih = clip.size
+                    print(f"📷 Image {idx+1} loaded successfully - original size: {iw}x{ih}", flush=True)
+                except Exception as e:
+                    print(f"❌ Failed to load image {idx+1}: {e}", flush=True)
+                    raise HTTPException(status_code=500, detail=f"Failed to load image {idx+1}: {str(e)}")
 
-                # Calculate scale to fill canvas
+                # Calculate scale to fill canvas (use max to ensure image fills screen)
                 scale = max(W / iw, H / ih)
                 new_w, new_h = int(iw * scale), int(ih * scale)
                 print(f"🔍 Scale: {scale:.2f}, scaled size: {new_w}x{new_h}", flush=True)
                 
-                # For now, let's use a simple approach that definitely works
-                # Resize image to fill canvas (centered)
+                # Resize image to fill canvas
                 clip = clip.resize((new_w, new_h))
+                print(f"✅ Image {idx+1} resized to {clip.size}", flush=True)
+                
+                # Set position to center
                 clip = clip.set_position("center")
+                
+                # Set duration
                 clip = clip.set_duration(dur)
+                print(f"✅ Image {idx+1} duration set to {dur}s", flush=True)
                 
-                print(f"✅ Image {idx+1} resized to {clip.size}, positioned at center", flush=True)
-                
-                # Create background
+                # Create black background
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
+                print(f"✅ Background created: {background.size}, duration: {background.duration}", flush=True)
                 
                 # Composite: background first, then image on top
+                # Make sure both clips have the same duration
                 final_clip = CompositeVideoClip(
                     [background, clip],
                     size=(W, H)
                 ).set_duration(dur)
                 
-                print(f"✅ Clip {idx+1} created: final size={final_clip.size}, duration={dur}s", flush=True)
+                print(f"✅ Clip {idx+1} created - final size: {final_clip.size}, duration: {final_clip.duration}s", flush=True)
+                print(f"   Background size: {background.size}, Image clip size: {clip.size}", flush=True)
 
                 clips.append(final_clip)
 
@@ -180,18 +193,37 @@ async def create_slideshow_video(
             output_path = os.path.join(videos_dir, filename)
 
             # Write video file with optimized settings for faster generation
-            final.write_videofile(
-                output_path,
-                fps=24,  # Standard framerate (lower = faster)
-                codec="libx264",
-                preset="ultrafast",  # Fastest preset for quick generation
-                bitrate="2000k",  # Lower bitrate for faster encoding (still good quality)
-                audio=False,
-                verbose=False,
-                logger=None,
-                threads=4,  # Use multiple threads for faster encoding
-                write_logfile=False,  # Disable logfile for faster processing
-            )
+            print(f"🎬 Writing video to: {output_path}", flush=True)
+            print(f"📊 Final video: size={final.size}, duration={final.duration}s, fps=24", flush=True)
+            
+            try:
+                final.write_videofile(
+                    output_path,
+                    fps=24,  # Standard framerate
+                    codec="libx264",
+                    preset="ultrafast",  # Fastest preset for quick generation
+                    bitrate="2000k",  # Lower bitrate for faster encoding (still good quality)
+                    audio=False,
+                    verbose=False,
+                    logger=None,
+                    threads=4,  # Use multiple threads for faster encoding
+                    write_logfile=False,  # Disable logfile for faster processing
+                )
+                print(f"✅ Video file written successfully: {output_path}", flush=True)
+                print(f"📁 File size: {os.path.getsize(output_path) if os.path.exists(output_path) else 0} bytes", flush=True)
+            except Exception as e:
+                print(f"❌ Failed to write video file: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(status_code=500, detail=f"Failed to write video: {str(e)}")
+            
+            # Clean up clips to free memory
+            try:
+                final.close()
+                for c in clips:
+                    c.close()
+            except Exception:
+                pass
 
             # Persist GeneratedVideo record for current user
             try:
