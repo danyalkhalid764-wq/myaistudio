@@ -5,6 +5,11 @@ from database import engine, Base
 from routes import auth, tts, payments, video
 import os
 
+# DEBUG: Check if DATABASE_URL is set in Railway
+print("=" * 50)
+print("DEBUG_DATABASE_URL:", os.getenv("DATABASE_URL"))
+print("=" * 50)
+
 # Create database tables if they don't exist (with error handling)
 try:
     Base.metadata.create_all(bind=engine)

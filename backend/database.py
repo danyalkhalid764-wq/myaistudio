@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# DEBUG: Check if DATABASE_URL is set
+print("DEBUG_DATABASE_URL in database.py:", os.getenv("DATABASE_URL"))
+
 # Database configuration: Use SQLite for both local development and Railway
 # Check for DATABASE_URL environment variable first
 DATABASE_URL = os.getenv("DATABASE_URL")
