@@ -141,8 +141,9 @@ async def create_slideshow_video(
                 clip = clip.resize((W, H))
                 print(f"✅ Image {idx+1} resized to canvas size: {W}x{H}", flush=True)
                 
-                # Set duration - CRITICAL for ImageClip to work
+                # Set duration and FPS - CRITICAL for ImageClip to work as video
                 clip = clip.set_duration(dur)
+                clip = clip.set_fps(24)
                 
                 # Use the clip directly - no composite needed if image fills canvas
                 final_clip = clip
@@ -200,28 +201,44 @@ async def create_slideshow_video(
             except Exception as e:
                 print(f"⚠️ Warning: Could not verify final video frame: {e}", flush=True)
             
-            # Write video file with optimized settings for faster generation
+            # Write video file - use proper settings for valid MP4
             print(f"🎬 Writing video to: {output_path}", flush=True)
+            print(f"📊 Final video: size={final.size}, duration={final.duration}s", flush=True)
             
             try:
+                # CRITICAL: Ensure final video has proper FPS
+                if not hasattr(final, 'fps') or final.fps is None:
+                    final = final.set_fps(24)
+                    print(f"✅ Set FPS to 24", flush=True)
+                
+                # Write video with proper encoding settings
                 final.write_videofile(
                     output_path,
-                    fps=24,  # Standard framerate
+                    fps=24,
                     codec="libx264",
-                    preset="ultrafast",  # Fastest preset for quick generation
-                    bitrate="2000k",  # Lower bitrate for faster encoding (still good quality)
+                    preset="medium",  # Use medium preset for better compatibility
+                    bitrate="3000k",  # Higher bitrate for better quality
                     audio=False,
                     verbose=False,
                     logger=None,
-                    threads=4,  # Use multiple threads for faster encoding
-                    write_logfile=False,  # Disable logfile for faster processing
+                    threads=4,
+                    write_logfile=False,
+                    temp_audiofile=None,  # No audio file needed
+                    remove_temp=True,  # Clean up temp files
                 )
+                
                 print(f"✅ Video file written successfully: {output_path}", flush=True)
                 file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
                 print(f"📁 File size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
                 
-                if file_size < 1000:  # Less than 1KB is suspicious
-                    print(f"⚠️ WARNING: Video file is very small ({file_size} bytes) - might be empty!", flush=True)
+                if file_size < 1000:
+                    print(f"❌ ERROR: Video file is too small ({file_size} bytes) - file is corrupted!", flush=True)
+                    raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
+                
+                # Verify file is readable
+                if not os.path.exists(output_path):
+                    raise HTTPException(status_code=500, detail="Video file was not created")
+                    
             except Exception as e:
                 print(f"❌ Failed to write video file: {e}", flush=True)
                 import traceback
