@@ -69,6 +69,17 @@ async def generate_voice(
             )
     
     try:
+        # Validate ElevenLabs API key before attempting generation
+        if not elevenlabs_service.api_key:
+            print("❌ ElevenLabs API key is not configured", flush=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Voice generation service is not configured. Please contact support."
+            )
+        
+        print(f"🎤 Generating voice for user {current_user.email} (Plan: {current_user.plan})", flush=True)
+        print(f"📝 Text length: {len(request.text)} characters, Word count: {word_count}", flush=True)
+        
         # Generate voice using ElevenLabs
         audio_data = await elevenlabs_service.generate_voice(request.text)
         
@@ -142,10 +153,29 @@ async def generate_voice(
                 tokens_remaining=remaining_tokens
             )
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is (they already have proper status codes)
+        raise
     except Exception as e:
+        # Log detailed error information for debugging
+        import traceback
+        error_detail = str(e)
+        traceback_str = traceback.format_exc()
+        print(f"❌ Voice generation error: {error_detail}", flush=True)
+        print(f"Traceback: {traceback_str}", flush=True)
+        
+        # Provide user-friendly error message
+        error_message = "Voice generation failed"
+        if "API key" in error_detail or "api_key" in error_detail.lower():
+            error_message = "Voice generation service configuration error. Please contact support."
+        elif "quota" in error_detail.lower() or "limit" in error_detail.lower():
+            error_message = "Voice generation quota exceeded. Please try again later."
+        elif "network" in error_detail.lower() or "connection" in error_detail.lower():
+            error_message = "Network error. Please check your connection and try again."
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Voice generation failed: {str(e)}"
+            detail=error_message
         )
 
 @router.get("/history")
