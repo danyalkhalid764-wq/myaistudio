@@ -23,8 +23,32 @@ export default function VideoSlideshow() {
     try {
       setLoading(true)
       const res = await generateSlideshow({ files, durationSeconds: duration, slideEffect, transition })
+      // Handle video URL for both local development and production
+      let videoUrlToUse = res.video_url
+      if (videoUrlToUse) {
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+        const isLocalDev = API_BASE_URL.includes('localhost:8000')
+        
+        // If URL contains localhost:8000 and we're in local dev, use Vite proxy
+        if (videoUrlToUse.includes('localhost:8000') && isLocalDev) {
+          videoUrlToUse = videoUrlToUse.replace('localhost:8000', 'localhost:3000')
+        }
+        // If it's a relative URL starting with /static
+        else if (videoUrlToUse.startsWith('/static')) {
+          // In local dev, Vite proxy will handle it
+          // In production, prepend the backend URL
+          if (!isLocalDev) {
+            videoUrlToUse = `${API_BASE_URL}${videoUrlToUse}`
+          }
+        }
+        // If it's not a full URL, prepend backend URL
+        else if (!videoUrlToUse.startsWith('http://') && !videoUrlToUse.startsWith('https://')) {
+          videoUrlToUse = `${API_BASE_URL}${videoUrlToUse}`
+        }
+        // If it's a full production URL, use it directly
+      }
       // Cache-bust and ensure the <video> reloads with new source
-      setVideoUrl(`${res.video_url}?t=${Date.now()}`)
+      setVideoUrl(`${videoUrlToUse}?t=${Date.now()}`)
     } catch (err) {
       setError(err.message || 'Something went wrong')
     } finally {
