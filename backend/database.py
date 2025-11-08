@@ -6,18 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database configuration: Use SQLite for local development, PostgreSQL for production
-# Check multiple possible Railway variable names for PostgreSQL connection
-# Railway typically uses DATABASE_URL, but may use service-specific names
-DATABASE_URL = (
-    os.getenv("DATABASE_URL") or  # Standard Railway variable (most common)
-    os.getenv("POSTGRES_URL") or  # Alternative Railway variable
-    os.getenv("PGDATABASE") or    # PostgreSQL standard variable
-    os.getenv("POSTGRES_DATABASE_URL") or  # Another possible Railway variable
-    os.getenv("POSTGRES_PRIVATE_URL") or  # Railway private URL
-    os.getenv("POSTGRES_PUBLIC_URL") or   # Railway public URL
-    None
-)
+# Database configuration: Use SQLite for both local development and Railway
+# Check for DATABASE_URL environment variable first
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     # Use SQLite for both local development and Railway
