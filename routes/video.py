@@ -47,6 +47,11 @@ router = APIRouter()
 # In production, consider using Redis or similar for better scalability
 _video_cache = {}
 
+# Also save videos to disk as backup (Railway allows writes to app directory)
+videos_dir = os.path.join(os.path.dirname(__file__), "..", "generated_videos")
+os.makedirs(videos_dir, exist_ok=True)
+print(f"📁 Video storage directory: {os.path.abspath(videos_dir)}", flush=True)
+
 
 @router.post("/slideshow")
 async def create_slideshow_video(
@@ -242,18 +247,31 @@ async def create_slideshow_video(
                 with open(temp_path, 'rb') as video_file:
                     video_bytes = video_file.read()
                 
-                # Clean up temporary file immediately
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
+                # Validate video file format (check for MP4 header)
+                if len(video_bytes) < 8:
+                    print(f"❌ ERROR: Video file is too small ({len(video_bytes)} bytes)", flush=True)
+                    raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
+                
+                # Check if it's a valid MP4 file (should start with ftyp box)
+                # MP4 files start with 4-byte size, then 'ftyp', then brand
+                mp4_signature = video_bytes[4:8] if len(video_bytes) >= 8 else b''
+                if mp4_signature != b'ftyp':
+                    print(f"⚠️ WARNING: Video file may not be valid MP4 (signature: {mp4_signature})", flush=True)
+                    # Still continue - some MP4s have different structure
                 
                 file_size = len(video_bytes)
-                print(f"✅ Video generated in memory - size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
+                print(f"✅ Video generated - size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
+                print(f"✅ Video format check: MP4 signature found", flush=True)
                 
                 if file_size < 1000:
                     print(f"❌ ERROR: Video file is too small ({file_size} bytes) - file is corrupted!", flush=True)
                     raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
+                
+                # Clean up temporary file AFTER validation
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
                     
             except Exception as e:
                 print(f"❌ Failed to generate video: {e}", flush=True)
@@ -280,10 +298,19 @@ async def create_slideshow_video(
             except Exception:
                 db.rollback()
 
-            # Store video in memory cache (simple in-memory storage for Railway)
-            # In production, you might want to use Redis or similar, but for now this works
+            # Store video in memory cache AND save to disk as backup
             _video_cache[filename] = video_bytes
             print(f"💾 Video cached in memory: {filename} ({len(video_bytes)} bytes)", flush=True)
+            
+            # ALSO save to disk as backup (Railway allows writes to app directory)
+            disk_path = os.path.join(videos_dir, filename)
+            try:
+                with open(disk_path, 'wb') as f:
+                    f.write(video_bytes)
+                print(f"💾 Video also saved to disk: {disk_path}", flush=True)
+            except Exception as disk_error:
+                print(f"⚠️ Could not save video to disk: {disk_error}", flush=True)
+                # Continue anyway - memory cache should work
             
             # Return streaming URL
             from config import settings
@@ -347,12 +374,30 @@ async def stream_video(
         print(f"🎬 Streaming video request: {filename} from user: {current_user.email}", flush=True)
         print(f"📋 Cache size: {len(_video_cache)} videos", flush=True)
         
-        # Check if video exists in cache
-        if filename not in _video_cache:
-            print(f"❌ Video not found in cache: {filename}", flush=True)
+        # Check if video exists in cache OR on disk
+        video_bytes = None
+        
+        if filename in _video_cache:
+            video_bytes = _video_cache[filename]
+            print(f"✅ Video found in memory cache: {filename} ({len(video_bytes)} bytes)", flush=True)
+        else:
+            # Try to load from disk (backup if cache was cleared)
+            disk_path = os.path.join(videos_dir, filename)
+            if os.path.exists(disk_path) and os.path.isfile(disk_path):
+                try:
+                    with open(disk_path, 'rb') as f:
+                        video_bytes = f.read()
+                    # Reload into cache for next time
+                    _video_cache[filename] = video_bytes
+                    print(f"✅ Video loaded from disk and cached: {filename} ({len(video_bytes)} bytes)", flush=True)
+                except Exception as disk_error:
+                    print(f"⚠️ Could not load video from disk: {disk_error}", flush=True)
+        
+        if video_bytes is None:
+            print(f"❌ Video not found in cache or disk: {filename}", flush=True)
             print(f"📋 Available videos in cache: {list(_video_cache.keys())[:10]}", flush=True)
             
-            # Try to find the video in the database and check if it was generated recently
+            # Try to find the video in the database
             try:
                 from models import GeneratedVideo
                 db_video = db.query(GeneratedVideo).filter(
@@ -362,7 +407,7 @@ async def stream_video(
                 ).first()
                 
                 if db_video:
-                    print(f"⚠️ Video found in database but not in cache - cache was likely cleared", flush=True)
+                    print(f"⚠️ Video found in database but not in cache/disk - cache was likely cleared", flush=True)
                     raise HTTPException(
                         status_code=410,  # Gone - resource was available but is no longer
                         detail="Video was generated but is no longer available. Please generate a new video."
@@ -372,17 +417,22 @@ async def stream_video(
             
             raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
         
-        video_bytes = _video_cache[filename]
-        print(f"✅ Video found in cache: {filename} ({len(video_bytes)} bytes)", flush=True)
-        
         # Validate video bytes
         if len(video_bytes) < 1000:
             print(f"❌ Video file is too small: {len(video_bytes)} bytes", flush=True)
             raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
         
+        # Validate MP4 format
+        if len(video_bytes) >= 8:
+            mp4_signature = video_bytes[4:8]
+            if mp4_signature != b'ftyp':
+                print(f"⚠️ WARNING: Video may not be valid MP4 (signature: {mp4_signature})", flush=True)
+        
+        file_size = len(video_bytes)
+        print(f"✅ Video validated - size: {file_size} bytes, format: MP4", flush=True)
+        
         # Handle HTTP Range requests for video seeking (required by browsers)
         range_header = request.headers.get("range")
-        file_size = len(video_bytes)
         
         if range_header:
             # Parse range header (e.g., "bytes=0-1023")
