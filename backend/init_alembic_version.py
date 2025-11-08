@@ -95,9 +95,11 @@ try:
 except Exception as e:
     print(f"Warning: Could not ensure alembic_version table structure: {e}")
     print("   Alembic will handle this, but may create table with default size")
-    import traceback
-    traceback.print_exc()
     # Don't exit - let Alembic handle it
+    # Only print traceback in debug mode
+    if os.getenv("DEBUG", "false").lower() == "true":
+        import traceback
+        traceback.print_exc()
 
 print("Alembic version table check complete.")
 
