@@ -320,6 +320,7 @@ async def create_slideshow_video(
 @router.get("/stream/{filename}")
 async def stream_video(
     filename: str,
+    db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
     """
@@ -331,22 +332,48 @@ async def stream_video(
         filename = filename.split('?')[0]
         
         print(f"🎬 Streaming video request: {filename} from user: {current_user.email}", flush=True)
+        print(f"📋 Cache size: {len(_video_cache)} videos", flush=True)
         
         # Check if video exists in cache
         if filename not in _video_cache:
             print(f"❌ Video not found in cache: {filename}", flush=True)
-            print(f"📋 Available videos in cache: {list(_video_cache.keys())}", flush=True)
+            print(f"📋 Available videos in cache: {list(_video_cache.keys())[:10]}", flush=True)  # Show first 10
+            
+            # Try to find the video in the database and check if it was generated recently
+            try:
+                from models import GeneratedVideo
+                db_video = db.query(GeneratedVideo).filter(
+                    GeneratedVideo.video_url.like(f"%{filename}%")
+                ).filter(
+                    GeneratedVideo.user_id == current_user.id
+                ).first()
+                
+                if db_video:
+                    print(f"⚠️ Video found in database but not in cache - cache was likely cleared", flush=True)
+                    raise HTTPException(
+                        status_code=410,  # Gone - resource was available but is no longer
+                        detail="Video was generated but is no longer available. Please generate a new video."
+                    )
+            except Exception as db_error:
+                print(f"⚠️ Database check error: {db_error}", flush=True)
+            
             raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
         
         video_bytes = _video_cache[filename]
         print(f"✅ Video found in cache: {filename} ({len(video_bytes)} bytes)", flush=True)
+        
+        # Validate video bytes
+        if len(video_bytes) < 1000:
+            print(f"❌ Video file is too small: {len(video_bytes)} bytes", flush=True)
+            raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
         
         # Create a streaming response from bytes
         # Use BytesIO for streaming
         video_stream = io.BytesIO(video_bytes)
         video_stream.seek(0)  # Reset to beginning
         
-        return StreamingResponse(
+        # Create response with proper headers for video streaming
+        response = StreamingResponse(
             video_stream,
             media_type="video/mp4",
             headers={
@@ -355,8 +382,13 @@ async def stream_video(
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "public, max-age=3600",
                 "Content-Type": "video/mp4",
+                "X-Content-Type-Options": "nosniff",
             }
         )
+        
+        print(f"✅ Streaming response created for: {filename}", flush=True)
+        return response
+        
     except HTTPException:
         raise
     except Exception as e:
