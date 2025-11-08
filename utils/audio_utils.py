@@ -1,9 +1,22 @@
 import base64
 import io
 import os
+import shutil
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Configure pydub to use ffmpeg
+# Try to find ffmpeg from imageio-ffmpeg first, then system ffmpeg
+try:
+    import imageio_ffmpeg
+    ffmpeg_binary = imageio_ffmpeg.get_ffmpeg_exe()
+    os.environ["PATH"] = os.path.dirname(ffmpeg_binary) + os.pathsep + os.environ.get("PATH", "")
+except Exception:
+    # Fallback to system ffmpeg
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        os.environ["PATH"] = os.path.dirname(ffmpeg_path) + os.pathsep + os.environ.get("PATH", "")
 
 # Try to import pydub, fallback if not available
 try:
