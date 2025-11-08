@@ -17,13 +17,20 @@ if not DATABASE_URL:
     # Use SQLite for both local development and Railway
     # SQLite works fine for Railway if you want a simple database solution
     DATABASE_URL = "sqlite:///./myaistudio.db"
-    print("Using SQLite database")
+    print("Using SQLite database (default)")
     print(f"   Database file: {os.path.abspath('./myaistudio.db')}")
 else:
     # Clean up Railway template variables if present
     if "${{" in DATABASE_URL:
         print("Warning: DATABASE_URL contains template variable, Railway should expand this automatically")
-    print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
+    
+    # Check if it's SQLite or PostgreSQL
+    if DATABASE_URL.startswith("sqlite"):
+        print("Using SQLite database (from DATABASE_URL)")
+        db_file = DATABASE_URL.replace("sqlite:///", "")
+        print(f"   Database file: {os.path.abspath(db_file)}")
+    else:
+        print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
 
 # Create engine with appropriate settings
 if DATABASE_URL.startswith("sqlite"):
