@@ -70,6 +70,7 @@ cors_origins = [
     "http://127.0.0.1:3000",
     "https://picvoice3labc.netlify.app",         # your deployed frontend
     "https://pakistani-project-frontend.netlify.app",  # backup / test domain
+    "https://startling-cobbler-7dd158.netlify.app",  # current Netlify domain
 ]
 # Add any additional origins from config
 if hasattr(settings, 'ALLOWED_ORIGINS'):

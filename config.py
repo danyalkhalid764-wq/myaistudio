@@ -35,6 +35,7 @@ class Settings:
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "https://picvoice3labc.netlify.app",  # ← ADDED YOUR NETLIFY DOMAIN HERE
+        "https://startling-cobbler-7dd158.netlify.app",  # current Netlify domain
     ]
     # Add FRONTEND_URL to allowed origins if it's different from defaults
     if FRONTEND_URL not in ALLOWED_ORIGINS:
