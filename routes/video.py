@@ -215,7 +215,8 @@ async def create_slideshow_video(
                 temp_path = temp_file.name
                 temp_file.close()
                 
-                # Write video to temporary file
+                # Write video to temporary file with browser-compatible settings
+                # Use H.264 codec with baseline profile for maximum browser support
                 final.write_videofile(
                     temp_path,
                     fps=24,
@@ -229,6 +230,12 @@ async def create_slideshow_video(
                     write_logfile=False,
                     temp_audiofile=None,  # No audio file needed
                     remove_temp=True,  # Clean up temp files
+                    ffmpeg_params=[
+                        "-pix_fmt", "yuv420p",  # Ensure YUV420P pixel format (required for browser compatibility)
+                        "-profile:v", "baseline",  # Use baseline profile for maximum compatibility
+                        "-level", "3.0",  # H.264 level 3.0 for broad compatibility
+                        "-movflags", "+faststart",  # Enable fast start for web streaming
+                    ],
                 )
                 
                 # Read the video file into memory

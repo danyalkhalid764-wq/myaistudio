@@ -91,17 +91,15 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
 def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
     Get current authenticated user from JWT token.
-    Returns None if token is missing (for OPTIONS requests), raises exception if token is invalid.
+    Raises exception if token is missing or invalid.
     """
-    from typing import Optional
-    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Handle OPTIONS preflight requests (no token required)
+    # Token is required for authenticated endpoints
     if token is None:
         raise credentials_exception
 
