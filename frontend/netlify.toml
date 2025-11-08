@@ -1,0 +1,18 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "18"
+  # IMPORTANT: Set VITE_API_URL in Netlify Dashboard → Site settings → Environment variables
+  # Value should be: https://your-railway-backend.railway.app
+  # Example: VITE_API_URL = "https://pakistani-project-backend.up.railway.app"
+
+
+
+
