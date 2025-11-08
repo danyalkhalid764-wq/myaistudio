@@ -8,5 +8,5 @@ cmds = ["pip install -r requirements.txt"]
 cmds = []
 
 [start]
-cmd = "python init_alembic_version.py; alembic upgrade head; uvicorn main:app --host 0.0.0.0 --port $PORT"
+cmd = "python init_alembic_version.py; python run_migrations.py; uvicorn main:app --host 0.0.0.0 --port $PORT"
 
