@@ -1,2 +1,2 @@
-web: python init_alembic_version.py && alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+web: bash -c 'python init_alembic_version.py && alembic upgrade head && python main.py'
 
