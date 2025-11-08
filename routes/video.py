@@ -141,33 +141,39 @@ async def create_slideshow_video(
                 clip = clip.resize((new_w, new_h))
                 print(f"✅ Image {idx+1} resized to {clip.size}", flush=True)
                 
-                # Set position to center
-                clip = clip.set_position("center")
-                
-                # Set duration
+                # Set duration and FPS - CRITICAL for ImageClip to work
                 clip = clip.set_duration(dur)
-                print(f"✅ Image {idx+1} duration set to {dur}s", flush=True)
+                clip = clip.set_fps(24)
+                print(f"✅ Image {idx+1} duration: {dur}s, fps: 24", flush=True)
                 
-                # Create black background
+                # Create black background with same duration and FPS
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
-                print(f"✅ Background created: {background.size}, duration: {background.duration}", flush=True)
+                background = background.set_fps(24)
+                print(f"✅ Background created: {background.size}, duration: {background.duration}s, fps: {background.fps}", flush=True)
                 
-                # IMPORTANT: ImageClip needs to be explicitly set as a video clip
-                # Make sure the image clip has all required properties
-                clip = clip.set_fps(24)  # Set FPS for the clip
+                # CRITICAL: Set position BEFORE compositing
+                # Position image in center of canvas
+                clip = clip.set_position(("center", "center"))
                 
                 # Composite: background first, then image on top
-                # Use explicit size and duration
+                # The order matters - image should be on top
                 final_clip = CompositeVideoClip(
                     [background, clip],
-                    size=(W, H),
-                    bg_color=(0, 0, 0)  # Black background color
+                    size=(W, H)
                 )
                 final_clip = final_clip.set_duration(dur)
                 final_clip = final_clip.set_fps(24)
                 
                 print(f"✅ Clip {idx+1} created - final size: {final_clip.size}, duration: {final_clip.duration}s, fps: {final_clip.fps}", flush=True)
                 print(f"   Background: {background.size}, Image: {clip.size}, Position: center", flush=True)
+                
+                # Verify the clip has content
+                try:
+                    # Try to get a frame to verify the clip works
+                    test_frame = final_clip.get_frame(0.5)  # Get frame at 0.5 seconds
+                    print(f"✅ Clip {idx+1} verified - frame shape: {test_frame.shape}, non-zero pixels: {(test_frame > 0).sum()}", flush=True)
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not verify clip {idx+1}: {e}", flush=True)
 
                 clips.append(final_clip)
 
