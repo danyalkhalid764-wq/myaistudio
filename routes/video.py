@@ -1,5 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Request
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -318,15 +318,21 @@ async def create_slideshow_video(
 
 
 @router.get("/stream/{filename}")
+@router.head("/stream/{filename}")  # Support HEAD requests for video metadata
 async def stream_video(
     filename: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
     """
-    Stream video from memory cache.
+    Stream video from memory cache with proper CORS and range request support.
     This endpoint serves videos that were generated in-memory (for Railway's ephemeral storage).
+    Supports HTTP Range requests for video seeking in browsers.
     """
+    from fastapi import Request
+    from fastapi.responses import Response
+    
     try:
         # Remove query parameters if present
         filename = filename.split('?')[0]
@@ -337,7 +343,7 @@ async def stream_video(
         # Check if video exists in cache
         if filename not in _video_cache:
             print(f"❌ Video not found in cache: {filename}", flush=True)
-            print(f"📋 Available videos in cache: {list(_video_cache.keys())[:10]}", flush=True)  # Show first 10
+            print(f"📋 Available videos in cache: {list(_video_cache.keys())[:10]}", flush=True)
             
             # Try to find the video in the database and check if it was generated recently
             try:
@@ -367,10 +373,50 @@ async def stream_video(
             print(f"❌ Video file is too small: {len(video_bytes)} bytes", flush=True)
             raise HTTPException(status_code=500, detail="Video file is corrupted or empty")
         
-        # Create a streaming response from bytes
-        # Use BytesIO for streaming
+        # Handle HTTP Range requests for video seeking (required by browsers)
+        range_header = request.headers.get("range")
+        file_size = len(video_bytes)
+        
+        if range_header:
+            # Parse range header (e.g., "bytes=0-1023")
+            try:
+                range_match = range_header.replace("bytes=", "").split("-")
+                start = int(range_match[0]) if range_match[0] else 0
+                end = int(range_match[1]) if range_match[1] else file_size - 1
+                
+                # Ensure valid range
+                start = max(0, start)
+                end = min(file_size - 1, end)
+                
+                if start > end:
+                    raise HTTPException(status_code=416, detail="Range Not Satisfiable")
+                
+                # Extract the requested byte range
+                content_length = end - start + 1
+                video_chunk = video_bytes[start:end + 1]
+                
+                print(f"📦 Serving range: bytes {start}-{end}/{file_size}", flush=True)
+                
+                # Return partial content response
+                return Response(
+                    content=video_chunk,
+                    status_code=206,  # Partial Content
+                    headers={
+                        "Content-Range": f"bytes {start}-{end}/{file_size}",
+                        "Accept-Ranges": "bytes",
+                        "Content-Length": str(content_length),
+                        "Content-Type": "video/mp4",
+                        "Cache-Control": "public, max-age=3600",
+                    },
+                    media_type="video/mp4",
+                )
+            except (ValueError, IndexError):
+                # Invalid range header, serve full file
+                pass
+        
+        # Serve full video file
         video_stream = io.BytesIO(video_bytes)
-        video_stream.seek(0)  # Reset to beginning
+        video_stream.seek(0)
         
         # Create response with proper headers for video streaming
         response = StreamingResponse(
@@ -378,7 +424,7 @@ async def stream_video(
             media_type="video/mp4",
             headers={
                 "Content-Disposition": f'inline; filename="{filename}"',
-                "Content-Length": str(len(video_bytes)),
+                "Content-Length": str(file_size),
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "public, max-age=3600",
                 "Content-Type": "video/mp4",

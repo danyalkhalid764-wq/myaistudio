@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from typing import Optional
 from database import get_db
 from models import User
 from schemas import UserCreate, UserLogin, UserResponse, Token
@@ -8,7 +9,10 @@ from utils.jwt_handler import verify_password, get_password_hash, create_access_
 from datetime import timedelta
 
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# OAuth2PasswordBearer with auto_error=False to allow OPTIONS preflight requests
+# This is critical for CORS to work properly
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
 @router.post("/register", response_model=UserResponse)
@@ -84,12 +88,22 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """
+    Get current authenticated user from JWT token.
+    Returns None if token is missing (for OPTIONS requests), raises exception if token is invalid.
+    """
+    from typing import Optional
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # Handle OPTIONS preflight requests (no token required)
+    if token is None:
+        raise credentials_exception
 
     email = verify_token(token)
     if email is None:
