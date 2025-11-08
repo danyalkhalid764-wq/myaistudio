@@ -63,14 +63,21 @@ app = FastAPI(
 
 # ✅ FIXED: Proper CORS setup for both local + production
 # CORS middleware must be added BEFORE routers to handle OPTIONS preflight requests
+# CORS configuration - allow Netlify domains and local development
+from config import settings
+cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://picvoice3labc.netlify.app",         # your deployed frontend
+    "https://pakistani-project-frontend.netlify.app",  # backup / test domain
+]
+# Add any additional origins from config
+if hasattr(settings, 'ALLOWED_ORIGINS'):
+    cors_origins.extend([origin for origin in settings.ALLOWED_ORIGINS if origin not in cors_origins])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://picvoice3labc.netlify.app",         # your deployed frontend
-        "https://pakistani-project-frontend.netlify.app",  # backup / test domain
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],

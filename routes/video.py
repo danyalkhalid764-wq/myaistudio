@@ -166,10 +166,20 @@ async def create_slideshow_video(
         except Exception:
             db.rollback()
 
+        # Return full URL for production, relative URL for local dev
+        from config import settings
+        backend_url = os.getenv("BACKEND_URL", settings.BACKEND_URL)
+        if backend_url and not backend_url.startswith("http://localhost"):
+            # Production: return full URL
+            video_url = f"{backend_url}/static/videos/{filename}"
+        else:
+            # Local dev: return relative URL (frontend will handle it)
+            video_url = f"/static/videos/{filename}"
+
         return {
             "success": True,
             "message": "Slideshow video generated successfully.",
-            "video_url": f"/static/videos/{filename}",
+            "video_url": video_url,
         }
     finally:
         # Cleanup temporary files
