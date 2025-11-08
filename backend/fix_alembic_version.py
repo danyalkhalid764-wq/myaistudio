@@ -9,11 +9,11 @@ from sqlalchemy import create_engine, text
 # Load environment variables
 load_dotenv()
 
-# Get DATABASE_URL
+# Get DATABASE_URL - use SQLite by default if not set
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
-    print("❌ DATABASE_URL not found in environment variables")
-    exit(1)
+    database_url = "sqlite:///./myaistudio.db"
+    print("⚠️ DATABASE_URL not found, using SQLite default: sqlite:///./myaistudio.db")
 
 print("🔧 Fixing Alembic version table...")
 print(f"🔗 Connecting to database...")
