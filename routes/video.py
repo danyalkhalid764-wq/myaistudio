@@ -120,7 +120,9 @@ async def create_slideshow_video(
             final = concatenate_videoclips(clips, method="compose")
 
         # Output directory for generated videos
-        videos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "generated_videos"))
+        # Use app directory for generated_videos (writable location on Railway)
+        videos_dir = os.path.join(os.path.dirname(__file__), "..", "generated_videos")
+        videos_dir = os.path.abspath(videos_dir)
         os.makedirs(videos_dir, exist_ok=True)
 
         filename = f"slideshow_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}.mp4"

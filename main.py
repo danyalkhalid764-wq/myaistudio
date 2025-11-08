@@ -29,13 +29,9 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 
-# Create database tables if they don't exist (with error handling)
-try:
-    Base.metadata.create_all(bind=engine)
-    print("Database tables created/verified successfully")
-except Exception as e:
-    print(f"Warning: Could not create database tables: {e}")
-    print("Server will start, but database operations may fail until database is available")
+# Don't create tables here - let Alembic handle all migrations
+# Base.metadata.create_all() can conflict with Alembic migrations
+print("Database tables will be managed by Alembic migrations")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -68,10 +64,10 @@ app.include_router(payments.router, prefix="/api/payment", tags=["payments"])
 app.include_router(video.router, prefix="/api/video", tags=["video"])
 
 # ✅ Static files for generated videos
-# Use project root generated_videos directory to match video.py
-videos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "generated_videos"))
+# Use app directory for generated_videos (writable location on Railway)
+videos_dir = os.path.join(os.path.dirname(__file__), "generated_videos")
 os.makedirs(videos_dir, exist_ok=True)
-print(f"Video files directory: {videos_dir}")
+print(f"Video files directory: {os.path.abspath(videos_dir)}")
 
 # Direct route handler to serve video files (more reliable than mount)
 from fastapi.responses import FileResponse
