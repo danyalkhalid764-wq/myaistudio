@@ -152,15 +152,22 @@ async def create_slideshow_video(
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
                 print(f"✅ Background created: {background.size}, duration: {background.duration}", flush=True)
                 
+                # IMPORTANT: ImageClip needs to be explicitly set as a video clip
+                # Make sure the image clip has all required properties
+                clip = clip.set_fps(24)  # Set FPS for the clip
+                
                 # Composite: background first, then image on top
-                # Make sure both clips have the same duration
+                # Use explicit size and duration
                 final_clip = CompositeVideoClip(
                     [background, clip],
-                    size=(W, H)
-                ).set_duration(dur)
+                    size=(W, H),
+                    bg_color=(0, 0, 0)  # Black background color
+                )
+                final_clip = final_clip.set_duration(dur)
+                final_clip = final_clip.set_fps(24)
                 
-                print(f"✅ Clip {idx+1} created - final size: {final_clip.size}, duration: {final_clip.duration}s", flush=True)
-                print(f"   Background size: {background.size}, Image clip size: {clip.size}", flush=True)
+                print(f"✅ Clip {idx+1} created - final size: {final_clip.size}, duration: {final_clip.duration}s, fps: {final_clip.fps}", flush=True)
+                print(f"   Background: {background.size}, Image: {clip.size}, Position: center", flush=True)
 
                 clips.append(final_clip)
 
