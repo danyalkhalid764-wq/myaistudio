@@ -128,62 +128,67 @@ async def create_slideshow_video(
                 # Use max scale to fill canvas (ensures image fills screen, may crop edges)
                 scale = max(W / iw, H / ih)
                 new_w, new_h = int(iw * scale), int(ih * scale)
+                print(f"🔍 Scaled to: {new_w}x{new_h} (scale: {scale:.2f})", flush=True)
+                
+                # Resize image first
+                clip = clip.resize((new_w, new_h))
                 
                 # Apply slide effects if enabled
-                if slide_effect:
+                if slide_effect and transition != "none":
                     if transition == "ken_burns":
                         # Ken Burns effect: slow zoom and pan
-                        # Start slightly zoomed out, end zoomed in
-                        start_scale = scale * 0.95
-                        end_scale = scale * 1.05
-                        clip = clip.resize((int(iw * start_scale), int(ih * start_scale)))
-                        # Animate zoom
+                        # Create two clips: start (zoomed out) and end (zoomed in)
+                        start_scale = 0.95
+                        end_scale = 1.05
+                        start_w, start_h = int(new_w * start_scale), int(new_h * start_scale)
+                        end_w, end_h = int(new_w * end_scale), int(new_h * end_scale)
+                        
+                        # Create start and end clips
+                        start_clip = clip.resize((start_w, start_h))
+                        end_clip = clip.resize((end_w, end_h))
+                        
+                        # Animate between start and end
                         clip = clip.resize(lambda t: start_scale + (end_scale - start_scale) * t / dur)
-                        # Pan from top-left to center
-                        start_x = -(int(iw * start_scale) - W) / 2
-                        start_y = -(int(ih * start_scale) - H) / 2
-                        end_x = -(int(iw * end_scale) - W) / 2
-                        end_y = -(int(ih * end_scale) - H) / 2
+                        # Position: start from top-left, end at center
                         clip = clip.set_position(lambda t: (
-                            start_x + (end_x - start_x) * t / dur,
-                            start_y + (end_y - start_y) * t / dur
+                            -(new_w * (start_scale + (end_scale - start_scale) * t / dur) - W) / 2,
+                            -(new_h * (start_scale + (end_scale - start_scale) * t / dur) - H) / 2
                         ))
                     elif transition == "zoom_in":
                         # Zoom in effect: start normal, zoom in
-                        start_scale = scale
-                        end_scale = scale * 1.15
+                        start_scale = 1.0
+                        end_scale = 1.15
                         clip = clip.resize(lambda t: start_scale + (end_scale - start_scale) * t / dur)
                         clip = clip.set_position("center")
                     elif transition == "zoom_out":
                         # Zoom out effect: start zoomed, zoom out
-                        start_scale = scale * 1.15
-                        end_scale = scale
+                        start_scale = 1.15
+                        end_scale = 1.0
                         clip = clip.resize(lambda t: start_scale + (end_scale - start_scale) * t / dur)
                         clip = clip.set_position("center")
                     elif transition == "slide":
                         # Slide effect: image slides in from right
-                        clip = clip.resize((new_w, new_h))
                         clip = clip.set_position(lambda t: (
                             W - (W + new_w) * (1 - t / dur),
-                            "center"
+                            (H - new_h) / 2
                         ))
                     else:
                         # Default: center position, no animation
-                        clip = clip.resize((new_w, new_h))
                         clip = clip.set_position("center")
                 else:
                     # No slide effect: center the image, fill canvas
-                    clip = clip.resize((new_w, new_h))
                     clip = clip.set_position("center")
 
-                # Create background (use white for better visibility, or black for contrast)
+                # Create background (black for contrast)
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
 
-                # Composite image on background
+                # Composite image on background - ensure image is on top
                 final_clip = CompositeVideoClip(
                     [background, clip],
                     size=(W, H)
                 ).set_duration(dur)
+                
+                print(f"✅ Clip {idx+1} created: {final_clip.size}, duration: {dur}s", flush=True)
 
                 clips.append(final_clip)
 
