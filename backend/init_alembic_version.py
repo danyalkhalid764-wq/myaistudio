@@ -10,8 +10,14 @@ from sqlalchemy import create_engine, text
 # Load environment variables
 load_dotenv()
 
-# Get DATABASE_URL - use SQLite if not set
-database_url = os.getenv("DATABASE_URL")
+# Get DATABASE_URL - check multiple possible Railway variable names
+database_url = (
+    os.getenv("DATABASE_URL") or  # Standard Railway variable
+    os.getenv("POSTGRES_URL") or  # Alternative Railway variable
+    os.getenv("PGDATABASE") or    # PostgreSQL standard variable
+    os.getenv("POSTGRES_DATABASE_URL") or  # Another possible Railway variable
+    None
+)
 if not database_url:
     # Use SQLite for local development
     database_url = "sqlite:///./myaistudio.db"

@@ -26,8 +26,15 @@ target_metadata = Base.metadata
 
 # Get database URL from .env
 def get_url():
-    # Prefer env var; fallback to application's DATABASE_URL
-    url = os.getenv("DATABASE_URL") or DATABASE_URL
+    # Check multiple possible Railway variable names for PostgreSQL connection
+    url = (
+        os.getenv("DATABASE_URL") or  # Standard Railway variable
+        os.getenv("POSTGRES_URL") or  # Alternative Railway variable
+        os.getenv("PGDATABASE") or    # PostgreSQL standard variable
+        os.getenv("POSTGRES_DATABASE_URL") or  # Another possible Railway variable
+        DATABASE_URL or  # Fallback to application's DATABASE_URL
+        None
+    )
     if not url:
         # Use SQLite for local development if DATABASE_URL is not set
         url = "sqlite:///./myaistudio.db"

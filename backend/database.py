@@ -7,15 +7,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database configuration: Use SQLite for local development, PostgreSQL for production
-# If DATABASE_URL is set (e.g., from Railway), use it. Otherwise, use SQLite.
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Check multiple possible Railway variable names for PostgreSQL connection
+DATABASE_URL = (
+    os.getenv("DATABASE_URL") or  # Standard Railway variable
+    os.getenv("POSTGRES_URL") or  # Alternative Railway variable
+    os.getenv("PGDATABASE") or    # PostgreSQL standard variable
+    os.getenv("POSTGRES_DATABASE_URL") or  # Another possible Railway variable
+    os.getenv("${{Postgres.DATABASE_URL}}") or  # Railway template variable (if not expanded)
+    None
+)
 
 if not DATABASE_URL:
     # Use SQLite for local development
     DATABASE_URL = "sqlite:///./myaistudio.db"
     print("Using SQLite database for local development")
     print(f"   Database file: {os.path.abspath('./myaistudio.db')}")
+    print("   Note: For Railway deployment, ensure PostgreSQL service is connected and DATABASE_URL is set")
 else:
+    # Clean up Railway template variables if present
+    if "${{" in DATABASE_URL:
+        print("Warning: DATABASE_URL contains template variable, Railway should expand this automatically")
     print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
 
 # Create engine with appropriate settings
