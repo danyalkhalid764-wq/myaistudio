@@ -1,13 +1,38 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// ✅ Use localhost for local development, Railway URL for production
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:8000'
+
+// Debug: Log API URL in production to help diagnose issues
+if (import.meta.env.PROD) {
+  console.log('🔗 API Base URL:', API_BASE_URL)
+  console.log('🔗 VITE_API_URL env var:', import.meta.env.VITE_API_URL)
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 second timeout
 })
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout - API may be unreachable')
+    } else if (error.message === 'Network Error') {
+      console.error('Network Error - Check if backend is running and CORS is configured')
+      console.error('Attempted URL:', error.config?.url)
+      console.error('Full URL:', `${API_BASE_URL}${error.config?.url}`)
+    }
+    return Promise.reject(error)
+  }
+)
 
 // Add token to requests if available
 api.interceptors.request.use((config) => {
@@ -20,31 +45,43 @@ api.interceptors.request.use((config) => {
 
 export const authAPI = {
   login: async (email, password) => {
-    const response = await api.post('/auth/login', {
-      email,
-      password,
-    })
-    return response.data
+    try {
+      const response = await api.post('/auth/login', {
+        email,
+        password,
+      })
+      return response.data
+    } catch (error) {
+      console.error('Login API Error:', error)
+      console.error('API Base URL:', API_BASE_URL)
+      console.error('Error details:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   register: async (name, email, password) => {
-    const response = await api.post('/auth/register', {
-      name,
-      email,
-      password,
-    })
-    return response.data
+    try {
+      const response = await api.post('/auth/register', {
+        name,
+        email,
+        password,
+      })
+      return response.data
+    } catch (error) {
+      console.error('Register API Error:', error)
+      console.error('API Base URL:', API_BASE_URL)
+      console.error('Error details:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   getCurrentUser: async () => {
-    const response = await api.get('/auth/me')
-    return response.data
+    try {
+      const response = await api.get('/auth/me')
+      return response.data
+    } catch (error) {
+      console.error('Get Current User API Error:', error)
+      throw error
+    }
   },
 }
-
-
-
-
-
-
-
