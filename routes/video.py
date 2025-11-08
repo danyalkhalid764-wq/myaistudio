@@ -115,32 +115,82 @@ async def create_slideshow_video(
             
             dur = max(1, int(duration_seconds))
             clips = []
+            
+            print(f"🎨 Canvas size: {W}x{H}", flush=True)
+            print(f"🎬 Slide effect: {slide_effect}, Transition: {transition}", flush=True)
 
-            for path in saved_paths:
+            for idx, path in enumerate(saved_paths):
                 clip = ImageClip(path)
                 iw, ih = clip.size
+                print(f"📷 Image {idx+1} size: {iw}x{ih}", flush=True)
 
-                # Calculate scale factor to fit inside canvas (no cropping)
-                scale = min(W / iw, H / ih)
+                # Scale image to fill canvas while maintaining aspect ratio
+                # Use max scale to fill canvas (may crop slightly, but ensures image is visible)
+                scale = max(W / iw, H / ih)
                 new_w, new_h = int(iw * scale), int(ih * scale)
                 clip = clip.resize((new_w, new_h))
+                
+                # Apply slide effects if enabled
+                if slide_effect:
+                    if transition == "ken_burns":
+                        # Ken Burns effect: slow zoom and pan
+                        zoom_factor = 1.1  # 10% zoom
+                        clip = clip.resize(lambda t: 1 + (zoom_factor - 1) * t / dur)
+                        # Pan from top-left to center
+                        clip = clip.set_position(lambda t: (
+                            -(new_w - W) * (1 - t / dur) / 2,
+                            -(new_h - H) * (1 - t / dur) / 2
+                        ))
+                    elif transition == "zoom_in":
+                        # Zoom in effect
+                        clip = clip.resize(lambda t: 1 + 0.2 * t / dur)
+                        clip = clip.set_position("center")
+                    elif transition == "zoom_out":
+                        # Zoom out effect
+                        clip = clip.resize(lambda t: 1.2 - 0.2 * t / dur)
+                        clip = clip.set_position("center")
+                    elif transition == "slide":
+                        # Slide effect: image slides in from right
+                        clip = clip.set_position(lambda t: (
+                            W - (W + new_w) * (1 - t / dur),
+                            "center"
+                        ))
+                    else:
+                        # Default: center position
+                        clip = clip.set_position("center")
+                else:
+                    # No slide effect: center the image
+                    clip = clip.set_position("center")
 
-                # Create black background same size as canvas
+                # Create background (use white for better visibility, or black for contrast)
                 background = ColorClip(size=(W, H), color=(0, 0, 0), duration=dur)
 
-                # Center image on black background
+                # Composite image on background
                 final_clip = CompositeVideoClip(
-                    [background, clip.set_position(("center", "center"))],
+                    [background, clip],
                     size=(W, H)
                 ).set_duration(dur)
 
                 clips.append(final_clip)
 
-            if crossfade and len(clips) > 1:
-                cf = 1  # 1 second crossfade looks reasonable for short durations
-                final = concatenate_videoclips(clips, method="compose", padding=-cf)
+            # Apply transitions between clips
+            if len(clips) > 1:
+                if crossfade:
+                    # Crossfade transition
+                    cf_duration = min(0.5, dur * 0.3)  # 30% of clip duration or 0.5s max
+                    final = concatenate_videoclips(clips, method="compose", padding=-cf_duration)
+                elif transition in ["fade", "crossfade"]:
+                    # Fade transition
+                    cf_duration = min(0.5, dur * 0.3)
+                    final = concatenate_videoclips(clips, method="compose", padding=-cf_duration)
+                else:
+                    # No transition: direct cut
+                    final = concatenate_videoclips(clips, method="compose")
             else:
-                final = concatenate_videoclips(clips, method="compose")
+                final = clips[0] if clips else None
+                
+            if final is None:
+                raise HTTPException(status_code=500, detail="Failed to create video")
 
             # Output directory for generated videos
             # Use app directory for generated_videos (writable location on Railway)
