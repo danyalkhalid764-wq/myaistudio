@@ -26,19 +26,11 @@ target_metadata = Base.metadata
 
 # Get database URL from .env
 def get_url():
-    # Check multiple possible Railway variable names for PostgreSQL connection
-    url = (
-        os.getenv("DATABASE_URL") or  # Standard Railway variable
-        os.getenv("POSTGRES_URL") or  # Alternative Railway variable
-        os.getenv("PGDATABASE") or    # PostgreSQL standard variable
-        os.getenv("POSTGRES_DATABASE_URL") or  # Another possible Railway variable
-        DATABASE_URL or  # Fallback to application's DATABASE_URL
-        None
-    )
+    # Use DATABASE_URL from environment or fallback to application's DATABASE_URL
+    url = os.getenv("DATABASE_URL") or DATABASE_URL
     if not url:
-        # Use SQLite for local development if DATABASE_URL is not set
+        # Use SQLite by default if not set
         url = "sqlite:///./myaistudio.db"
-        print("Using SQLite database for local development")
     return url
 
 def ensure_alembic_version_table(connection):

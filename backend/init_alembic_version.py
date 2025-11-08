@@ -10,18 +10,11 @@ from sqlalchemy import create_engine, text
 # Load environment variables
 load_dotenv()
 
-# Get DATABASE_URL - check multiple possible Railway variable names
-database_url = (
-    os.getenv("DATABASE_URL") or  # Standard Railway variable
-    os.getenv("POSTGRES_URL") or  # Alternative Railway variable
-    os.getenv("PGDATABASE") or    # PostgreSQL standard variable
-    os.getenv("POSTGRES_DATABASE_URL") or  # Another possible Railway variable
-    None
-)
+# Get DATABASE_URL - use SQLite by default if not set
+database_url = os.getenv("DATABASE_URL")
 if not database_url:
-    # Use SQLite for local development
+    # Use SQLite for both local development and Railway
     database_url = "sqlite:///./myaistudio.db"
-    print("Using SQLite database for local development")
 
 print("Ensuring Alembic version table has correct structure...")
 
