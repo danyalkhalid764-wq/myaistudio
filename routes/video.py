@@ -52,10 +52,15 @@ async def create_slideshow_video(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    # Daily limit removed - no restrictions on video generation
-    # Validate number of images
-    if not (2 <= len(images) <= 3):
-        raise HTTPException(status_code=400, detail="Please upload 2 to 3 images.")
+    try:
+        print(f"🎬 Video slideshow request from user: {current_user.email} (ID: {current_user.id})", flush=True)
+        print(f"📸 Number of images: {len(images)}", flush=True)
+        print(f"⏱️ Duration: {duration_seconds} seconds", flush=True)
+        
+        # Daily limit removed - no restrictions on video generation
+        # Validate number of images
+        if not (2 <= len(images) <= 3):
+            raise HTTPException(status_code=400, detail="Please upload 2 to 3 images.")
 
     # Validate formats and persist temporarily
     temp_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tmp_uploads"))
@@ -176,11 +181,26 @@ async def create_slideshow_video(
             # Local dev: return relative URL (frontend will handle it)
             video_url = f"/static/videos/{filename}"
 
+        print(f"✅ Video generated successfully: {filename}", flush=True)
         return {
             "success": True,
             "message": "Slideshow video generated successfully.",
             "video_url": video_url,
         }
+    except HTTPException:
+        # Re-raise HTTP exceptions (they already have proper status codes and CORS headers)
+        raise
+    except Exception as e:
+        # Log the error and re-raise as HTTPException with CORS-friendly response
+        import traceback
+        error_detail = str(e)
+        traceback_str = traceback.format_exc()
+        print(f"❌ Video generation error: {error_detail}", flush=True)
+        print(f"Traceback: {traceback_str}", flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Video generation failed: {error_detail}"
+        )
     finally:
         # Cleanup temporary files
         for p in saved_paths:
