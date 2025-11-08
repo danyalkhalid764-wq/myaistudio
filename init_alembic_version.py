@@ -99,4 +99,7 @@ except Exception as e:
     # Don't exit - let Alembic handle it
 
 print("✅ Alembic version table check complete.")
+print("=" * 50)
+print("Next: Running Alembic migrations...")
+print("=" * 50)
 

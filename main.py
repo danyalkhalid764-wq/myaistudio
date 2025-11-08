@@ -7,6 +7,7 @@ import os
 
 # DEBUG: Check if DATABASE_URL is set in Railway
 print("=" * 50)
+print("Starting FastAPI application...")
 print("DEBUG_DATABASE_URL:", os.getenv("DATABASE_URL"))
 print("=" * 50)
 
@@ -75,6 +76,17 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Print server startup info
+print("=" * 50)
+print("FastAPI application initialized successfully!")
+print("Routes registered:")
+print("  - /auth/* (authentication)")
+print("  - /api/* (text-to-speech)")
+print("  - /api/payment/* (payments)")
+print("  - /api/video/* (video generation)")
+print("  - /static/videos/* (video files)")
+print("=" * 50)
 
 if __name__ == "__main__":
     import uvicorn
