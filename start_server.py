@@ -5,13 +5,16 @@ Startup script to ensure the server starts with proper error handling.
 import sys
 import os
 
-# Force output immediately
+# Force output immediately - CRITICAL
 sys.stdout.flush()
 sys.stderr.flush()
 
+# Print immediately to confirm script is running
+print("", flush=True)
 print("=" * 50, flush=True)
 print("🚀 STARTING SERVER STARTUP SCRIPT...", flush=True)
 print("=" * 50, flush=True)
+print("", flush=True)
 
 # Get port from environment or use default
 port = os.getenv("PORT", "8000")
