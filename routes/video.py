@@ -330,26 +330,38 @@ async def stream_video(
         # Remove query parameters if present
         filename = filename.split('?')[0]
         
+        print(f"🎬 Streaming video request: {filename} from user: {current_user.email}", flush=True)
+        
         # Check if video exists in cache
         if filename not in _video_cache:
+            print(f"❌ Video not found in cache: {filename}", flush=True)
+            print(f"📋 Available videos in cache: {list(_video_cache.keys())}", flush=True)
             raise HTTPException(status_code=404, detail=f"Video not found: {filename}")
         
         video_bytes = _video_cache[filename]
+        print(f"✅ Video found in cache: {filename} ({len(video_bytes)} bytes)", flush=True)
         
         # Create a streaming response from bytes
+        # Use BytesIO for streaming
+        video_stream = io.BytesIO(video_bytes)
+        video_stream.seek(0)  # Reset to beginning
+        
         return StreamingResponse(
-            io.BytesIO(video_bytes),
+            video_stream,
             media_type="video/mp4",
             headers={
                 "Content-Disposition": f'inline; filename="{filename}"',
                 "Content-Length": str(len(video_bytes)),
                 "Accept-Ranges": "bytes",
                 "Cache-Control": "public, max-age=3600",
+                "Content-Type": "video/mp4",
             }
         )
     except HTTPException:
         raise
     except Exception as e:
         print(f"❌ Error streaming video: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to stream video: {str(e)}")
 
