@@ -57,7 +57,7 @@ print("Database tables will be managed by Alembic migrations")
 # Initialize FastAPI app
 app = FastAPI(
     title="MyAIStudio API",
-    description="Text-to-Speech API with ElevenLabs integration",
+    description="Text-to-Speech API with Lamonfox (Lemonfox.ai) integration",
     version="1.0.0"
 )
 

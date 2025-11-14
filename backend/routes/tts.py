@@ -3,14 +3,14 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User, VoiceHistory
 from schemas import VoiceGenerateRequest, VoiceGenerateResponse
-from services.elevenlabs_service import ElevenLabsService
+from services.lamonfox_service import LamonfoxService
 from utils.audio_utils import add_watermark_to_audio, audio_to_base64
 from routes.auth import get_current_user
 import os
 from datetime import datetime, date
 
 router = APIRouter()
-elevenlabs_service = ElevenLabsService()
+lamonfox_service = LamonfoxService()
 
 @router.post("/generate-voice", response_model=VoiceGenerateResponse)
 async def generate_voice(
@@ -69,9 +69,9 @@ async def generate_voice(
             )
     
     try:
-        # Validate ElevenLabs API key before attempting generation
-        if not elevenlabs_service.api_key:
-            print("❌ ElevenLabs API key is not configured", flush=True)
+        # Validate Lamonfox API key before attempting generation
+        if not lamonfox_service.api_key:
+            print("❌ Lamonfox API key is not configured", flush=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Voice generation service is not configured. Please contact support."
@@ -80,8 +80,8 @@ async def generate_voice(
         print(f"🎤 Generating voice for user {current_user.email} (Plan: {current_user.plan})", flush=True)
         print(f"📝 Text length: {len(request.text)} characters, Word count: {word_count}", flush=True)
         
-        # Generate voice using ElevenLabs
-        audio_data = await elevenlabs_service.generate_voice(request.text)
+        # Generate voice using Lamonfox
+        audio_data = await lamonfox_service.generate_voice(request.text)
         
         # Handle trial vs paid users
         if current_user.plan == "Free":
