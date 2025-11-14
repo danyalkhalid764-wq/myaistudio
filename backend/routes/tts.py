@@ -164,17 +164,32 @@ async def generate_voice(
         print(f"❌ Voice generation error: {error_detail}", flush=True)
         print(f"Traceback: {traceback_str}", flush=True)
         
-        # Provide user-friendly error message
-        error_message = "Voice generation failed"
-        if "API key" in error_detail or "api_key" in error_detail.lower():
+        # Determine appropriate status code and error message
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        error_message = error_detail  # Use the actual error message by default
+        
+        # Map specific errors to appropriate status codes and messages
+        if "API key" in error_detail or "api_key" in error_detail.lower() or "not configured" in error_detail.lower():
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             error_message = "Voice generation service configuration error. Please contact support."
+        elif "Payment required" in error_detail or "free tier" in error_detail.lower() or "unusual activity" in error_detail.lower():
+            status_code = status.HTTP_402_PAYMENT_REQUIRED
+            error_message = error_detail  # Preserve the actual error message from Lamonfox
         elif "quota" in error_detail.lower() or "limit" in error_detail.lower():
+            status_code = status.HTTP_429_TOO_MANY_REQUESTS
             error_message = "Voice generation quota exceeded. Please try again later."
-        elif "network" in error_detail.lower() or "connection" in error_detail.lower():
+        elif "rate limit" in error_detail.lower():
+            status_code = status.HTTP_429_TOO_MANY_REQUESTS
+            error_message = error_detail
+        elif "network" in error_detail.lower() or "connection" in error_detail.lower() or "timeout" in error_detail.lower():
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE
             error_message = "Network error. Please check your connection and try again."
+        elif "invalid" in error_detail.lower() and "request" in error_detail.lower():
+            status_code = status.HTTP_400_BAD_REQUEST
+            error_message = error_detail
         
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status_code,
             detail=error_message
         )
 

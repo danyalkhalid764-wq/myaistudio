@@ -46,7 +46,12 @@ class LamonfoxService:
             try:
                 print(f"🎤 Generating voice with Lamonfox API (voice: {voice}, format: {response_format})", flush=True)
                 print(f"🔗 API URL: {url}", flush=True)
-                print(f"🔑 Using API key: {self.api_key[:10]}...{self.api_key[-5:] if len(self.api_key) > 15 else '***'}", flush=True)
+                # Log API key info (safely)
+                if self.api_key:
+                    key_preview = f"{self.api_key[:10]}...{self.api_key[-5:]}" if len(self.api_key) > 15 else f"{self.api_key[:5]}***"
+                    print(f"🔑 Using API key: {key_preview}", flush=True)
+                else:
+                    print(f"🔑 API key: NOT SET", flush=True)
                 
                 response = await client.post(url, json=data, headers=self.headers)
                 
