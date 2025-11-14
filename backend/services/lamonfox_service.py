@@ -19,7 +19,8 @@ class LamonfoxService:
         self.headers = {
             "Authorization": f"Bearer {self.api_key or ''}",
             "Content-Type": "application/json",
-            "User-Agent": "MyAIStudio/1.0"  # Add user agent to identify the application
+            "User-Agent": "MyAIStudio/1.0",  # Add user agent to identify the application
+            "Accept": "audio/mpeg"  # Explicitly request audio response
         }
     
     async def generate_voice(self, text: str, voice: str = "sarah", response_format: str = "mp3") -> bytes:
@@ -95,7 +96,19 @@ class LamonfoxService:
                 elif status_code == 400:
                     # Check for unusual activity error
                     if "unusual_activity" in error_text.lower() or "free tier" in error_text.lower():
-                        raise Exception("Free tier usage disabled due to unusual activity. Please upgrade to a paid plan or contact Lamonfox support. If you have a paid API key, ensure it's correctly configured.")
+                        error_msg = (
+                            "Lamonfox API Error: Your account is being treated as Free Tier and has been flagged for unusual activity. "
+                            "This can happen if:\n"
+                            "1. Your API key is from a free account (even if you purchased credits)\n"
+                            "2. Railway's IP address is flagged as a proxy/VPN\n"
+                            "3. Your paid account needs to be activated\n\n"
+                            "SOLUTION: Please contact Lamonfox support at https://lemonfox.ai with:\n"
+                            "- Your API key (they can verify if it's paid)\n"
+                            "- Request to whitelist Railway's IP addresses\n"
+                            "- Ask them to activate your paid subscription\n\n"
+                            f"Original error: {error_text}"
+                        )
+                        raise Exception(error_msg)
                     raise Exception(f"Invalid request: {error_text}")
                 else:
                     raise Exception(f"Voice generation failed (HTTP {status_code}): {error_text}")
