@@ -18,7 +18,8 @@ class LamonfoxService:
         
         self.headers = {
             "Authorization": f"Bearer {self.api_key or ''}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "MyAIStudio/1.0"  # Add user agent to identify the application
         }
     
     async def generate_voice(self, text: str, voice: str = "sarah", response_format: str = "mp3") -> bytes:
@@ -44,7 +45,14 @@ class LamonfoxService:
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 print(f"🎤 Generating voice with Lamonfox API (voice: {voice}, format: {response_format})", flush=True)
+                print(f"🔗 API URL: {url}", flush=True)
+                print(f"🔑 Using API key: {self.api_key[:10]}...{self.api_key[-5:] if len(self.api_key) > 15 else '***'}", flush=True)
+                
                 response = await client.post(url, json=data, headers=self.headers)
+                
+                # Log response status
+                print(f"📡 Response status: {response.status_code}", flush=True)
+                
                 response.raise_for_status()
                 print(f"✅ Voice generated successfully with Lamonfox API", flush=True)
                 return response.content
@@ -52,14 +60,37 @@ class LamonfoxService:
             except httpx.HTTPStatusError as e:
                 error_text = e.response.text if e.response else "Unknown error"
                 status_code = e.response.status_code if e.response else 0
+                
+                # Try to parse JSON error response
+                try:
+                    if e.response:
+                        error_json = e.response.json()
+                        if isinstance(error_json, dict):
+                            if "detail" in error_json:
+                                detail = error_json["detail"]
+                                if isinstance(detail, dict):
+                                    message = detail.get("message", error_text)
+                                    status_msg = detail.get("status", "")
+                                    error_text = f"{status_msg}: {message}" if status_msg else message
+                                else:
+                                    error_text = str(detail)
+                except:
+                    pass  # If JSON parsing fails, use original error_text
+                
                 print(f"⚠️ Lamonfox API error: {status_code} - {error_text}", flush=True)
+                print(f"🔑 API Key (first 10 chars): {self.api_key[:10] if self.api_key else 'None'}...", flush=True)
                 
                 # Handle specific error cases
                 if status_code == 401:
                     raise Exception("Lamonfox API key is invalid or expired. Please check your API key configuration.")
+                elif status_code == 402:
+                    raise Exception("Payment required. Your API key may be on a free tier that has been disabled. Please upgrade to a paid plan or contact Lamonfox support.")
                 elif status_code == 429:
                     raise Exception("Lamonfox API rate limit exceeded. Please try again later.")
                 elif status_code == 400:
+                    # Check for unusual activity error
+                    if "unusual_activity" in error_text.lower() or "free tier" in error_text.lower():
+                        raise Exception("Free tier usage disabled due to unusual activity. Please upgrade to a paid plan or contact Lamonfox support. If you have a paid API key, ensure it's correctly configured.")
                     raise Exception(f"Invalid request: {error_text}")
                 else:
                     raise Exception(f"Voice generation failed (HTTP {status_code}): {error_text}")
