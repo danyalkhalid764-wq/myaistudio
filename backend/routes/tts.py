@@ -211,6 +211,20 @@ async def get_voice_history(
         for entry in history
     ]
 
+@router.get("/debug")
+async def debug_tts_service(current_user: User = Depends(get_current_user)):
+    """Debug endpoint to check TTS service configuration"""
+    api_key_set = bool(lamonfox_service.api_key)
+    api_key_preview = f"{lamonfox_service.api_key[:10]}...{lamonfox_service.api_key[-5:]}" if lamonfox_service.api_key and len(lamonfox_service.api_key) > 15 else ("Set" if api_key_set else "Not Set")
+    
+    return {
+        "service": "Lamonfox",
+        "api_key_configured": api_key_set,
+        "api_key_preview": api_key_preview,
+        "base_url": lamonfox_service.base_url,
+        "status": "ready" if api_key_set else "missing_api_key"
+    }
+
 @router.get("/plan")
 async def get_plan_info(current_user: User = Depends(get_current_user)):
     """Get user's current plan information"""
