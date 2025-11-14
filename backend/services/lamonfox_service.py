@@ -7,6 +7,21 @@ load_dotenv()
 LAMONFOX_API_KEY = os.getenv("LAMONFOX_API_KEY")
 LAMONFOX_BASE_URL = "https://api.lemonfox.ai/v1"
 
+# List of free proxies to rotate through
+PROXIES = [
+    "http://proxy.scrape.center:8080",
+    "http://51.158.68.68:8811",
+    "http://103.187.98.25:8080",
+    "http://34.146.64.228:3128",
+    "http://185.199.229.156:7492"
+]
+
+def get_proxy():
+    """Get proxy configuration for httpx"""
+    # Return first proxy (will be rotated in the request logic)
+    # httpx uses string URL format, not dict
+    return PROXIES[0] if PROXIES else None
+
 class LamonfoxService:
     def __init__(self):
         self.api_key = LAMONFOX_API_KEY
@@ -43,10 +58,14 @@ class LamonfoxService:
             "response_format": response_format  # Options: mp3, opus, aac, flac, wav, pcm
         }
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Try each proxy until one works
+        last_error = None
+        for proxy_url in PROXIES:
             try:
                 print(f"🎤 Generating voice with Lamonfox API (voice: {voice}, format: {response_format})", flush=True)
                 print(f"🔗 API URL: {url}", flush=True)
+                print(f"🌐 Trying proxy: {proxy_url}", flush=True)
+                
                 # Log API key info (safely)
                 if self.api_key:
                     key_preview = f"{self.api_key[:10]}...{self.api_key[-5:]}" if len(self.api_key) > 15 else f"{self.api_key[:5]}***"
@@ -54,16 +73,29 @@ class LamonfoxService:
                 else:
                     print(f"🔑 API key: NOT SET", flush=True)
                 
-                response = await client.post(url, json=data, headers=self.headers)
+                # Create client with proxy
+                proxies = {
+                    "http://": proxy_url,
+                    "https://": proxy_url
+                }
                 
-                # Log response status
-                print(f"📡 Response status: {response.status_code}", flush=True)
-                
-                response.raise_for_status()
-                print(f"✅ Voice generated successfully with Lamonfox API", flush=True)
-                return response.content
-                
+                async with httpx.AsyncClient(timeout=60.0, proxies=proxies) as client:
+                    response = await client.post(url, json=data, headers=self.headers)
+                    
+                    # Log response status
+                    print(f"📡 Response status: {response.status_code}", flush=True)
+                    
+                    response.raise_for_status()
+                    print(f"✅ Voice generated successfully with Lamonfox API using proxy: {proxy_url}", flush=True)
+                    return response.content
+                    
+            except httpx.ProxyError as e:
+                print(f"⚠️ Proxy {proxy_url} failed: {e}", flush=True)
+                last_error = e
+                continue  # Try next proxy
             except httpx.HTTPStatusError as e:
+                # If we get an HTTP error (not proxy error), don't try other proxies
+                # This means the request reached the API but got an error response
                 error_text = e.response.text if e.response else "Unknown error"
                 status_code = e.response.status_code if e.response else 0
                 
@@ -114,10 +146,18 @@ class LamonfoxService:
                     raise Exception(f"Voice generation failed (HTTP {status_code}): {error_text}")
                     
             except httpx.TimeoutException:
-                raise Exception("Voice generation request timed out. Please try again.")
+                print(f"⚠️ Proxy {proxy_url} timed out", flush=True)
+                last_error = Exception("Voice generation request timed out. Please try again.")
+                continue  # Try next proxy
             except Exception as e:
-                print(f"⚠️ Unexpected error with Lamonfox API: {e}", flush=True)
-                raise Exception(f"Voice generation failed: {str(e)}")
+                print(f"⚠️ Error with proxy {proxy_url}: {e}", flush=True)
+                last_error = e
+                continue  # Try next proxy
+        
+        # If all proxies failed, raise the last error
+        if last_error:
+            raise Exception(f"All proxies failed. Last error: {str(last_error)}")
+        raise Exception("No proxies available")
     
     async def get_voices(self):
         """
